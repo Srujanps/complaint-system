@@ -441,6 +441,19 @@ function formatComplaint(c, db) {
         assignmentStatus: assignment ? (assignment.status === 'PENDING' ? 'ASSIGNED' : assignment.status) : null,
         assignmentId: assignment ? assignment.assignmentId : null,
         workOrderNumber: assignment ? (assignment.workOrderNumber || `WO-2026-${String(assignment.assignmentId).padStart(4, '0')}`) : null,
+        startEvidenceImageData: assignment ? assignment.startEvidenceImageData : null,
+        startLatitude: assignment ? assignment.startLatitude : null,
+        startLongitude: assignment ? assignment.startLongitude : null,
+        fieldNotes: assignment ? assignment.notes : null,
+        completionEvidenceImageData: (assignment && assignment.completionEvidenceImageData) || c.resolutionEvidenceImageData || null,
+        completionLatitude: assignment ? assignment.completionLatitude : null,
+        completionLongitude: assignment ? assignment.completionLongitude : null,
+        completionNotes: (assignment && assignment.completionNotes) || c.resolutionNote || null,
+        aiVerificationScore: (assignment && assignment.aiVerificationScore) || c.aiResolutionScore || null,
+        aiVerificationNote: (assignment && assignment.aiVerificationNote) || c.aiResolutionNote || null,
+        resolutionEvidenceImageData: (assignment && assignment.completionEvidenceImageData) || c.resolutionEvidenceImageData || null,
+        completedAt: (assignment && assignment.completedAt) || c.resolvedAt || null,
+        assignmentHistory: assignment ? (assignment.history || []) : [],
         citizen: citizen ? {
             userId: citizen.userId,
             username: citizen.username,
@@ -1730,7 +1743,8 @@ async function handleRequest(req, res) {
             ['CREATED', 'RECEIVED', 'OFFICER_REVIEW', 'VERIFIED', 'IN_PROGRESS', 'ASSIGNED', 'VENDOR_ACCEPTED', 'COMPLETED', 'RESOLVED', 'CLOSED', 'ESCALATED'].forEach(s => {
                 byStatus[s] = areaComplaints.filter(c => c.status === s).length;
             });
-            const pending = (byStatus.CREATED || 0) + (byStatus.RECEIVED || 0) + (byStatus.VERIFIED || 0) + (byStatus.ASSIGNED || 0) + (byStatus.IN_PROGRESS || 0) + (byStatus.VENDOR_ACCEPTED || 0);
+            const pending = (byStatus.CREATED || 0) + (byStatus.RECEIVED || 0) + (byStatus.VERIFIED || 0) + (byStatus.ASSIGNED || 0) + (byStatus.VENDOR_ACCEPTED || 0);
+            const inProgress = (byStatus.IN_PROGRESS || 0);
             const completed = (byStatus.COMPLETED || 0);
             const resolved = (byStatus.RESOLVED || 0) + (byStatus.CLOSED || 0);
             const escalated = (byStatus.ESCALATED || 0);
@@ -1741,6 +1755,7 @@ async function handleRequest(req, res) {
                 total,
                 byStatus,
                 pending,
+                inProgress,
                 completed,
                 resolved,
                 escalated
@@ -2110,13 +2125,15 @@ async function handleRequest(req, res) {
 
             // 4. REPRESENTATIVE specific queries
             if (userRole === 'REPRESENTATIVE') {
+                const repArea = (userObj && userObj.constituency) ? userObj.constituency : 'Ward 12 - Central District';
+                const areaComplaints = db.complaints.filter(c => isLocationInConstituency(c.location, repArea));
                 if (queryText.includes('constituency') || queryText.includes('overview') || queryText.includes('summary') || queryText.includes('rate') || queryText.includes('area')) {
-                    const total = db.complaints.length;
-                    const resolved = db.complaints.filter(c => ['RESOLVED', 'CLOSED'].includes(c.status)).length;
-                    const inProg = db.complaints.filter(c => ['ASSIGNED', 'IN_PROGRESS', 'VENDOR_ACCEPTED'].includes(c.status)).length;
+                    const total = areaComplaints.length;
+                    const resolved = areaComplaints.filter(c => ['RESOLVED', 'CLOSED', 'COMPLETED'].includes(c.status)).length;
+                    const inProg = areaComplaints.filter(c => ['ASSIGNED', 'IN_PROGRESS', 'VENDOR_ACCEPTED'].includes(c.status)).length;
                     const resRate = total > 0 ? ((resolved / total) * 100).toFixed(1) : '100.0';
                     return sendJson(200, {
-                        reply: `📊 **Constituency Civic Grievance Briefing (Ward 12 - Central District):**\n\n• **Total Grievances Lodged:** ${total}\n• **Resolved & Verified:** ${resolved} (${resRate}% Resolution Rate)\n• **Active Field Work:** ${inProg} work orders in progress\n• **Pending Officer Triage:** ${total - resolved - inProg}\n\n🏆 *Top Performing Domain:* Water Supply rapid repairs (Avg resolution: 18 hours).`
+                        reply: `📊 **Constituency Civic Grievance Briefing (${repArea}):**\n\n• **Total Grievances Lodged:** ${total}\n• **Resolved & Completed:** ${resolved} (${resRate}% Resolution Rate)\n• **Active Field Work:** ${inProg} work orders in progress\n• **Pending Officer Triage:** ${total - resolved - inProg}\n\n🏆 *Top Performing Domain:* Water Supply rapid repairs (Avg resolution: 18 hours).`
                     });
                 }
 

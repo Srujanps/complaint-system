@@ -226,17 +226,27 @@ async function runTests() {
         const seesWard14 = resRepComplaints.body.content.some(c => c.complaintId === 3);
         assert(!seesWard14, 'Representative for Ward 12 CANNOT see Complaint 3 from Ward 14');
 
-        // 10b. Area-specific statistics
+        // 10b. Work done proof appears for completed work in representative jurisdiction
+        const cInRep = resRepComplaints.body.content.find(c => c.complaintId === complaintId);
+        assert(cInRep && cInRep.completionEvidenceImageData && cInRep.completionLatitude, 'Completed work proof (photo & GPS) appears in representative portal according to location');
+        assert(cInRep && cInRep.assignedVendorName, 'Contractor details appear in representative complaint details');
+
+        // 10c. Area-specific statistics
         const resRepStats = await mockCall('GET', '/api/representative/complaints/stats', null, { authorization: `Bearer ${tokens['representative']}` });
         assert(resRepStats.status === 200 && resRepStats.body.area.includes('Ward 12'), `GET /api/representative/complaints/stats returns area: "${resRepStats.body.area}"`);
         assert(resRepStats.body.total === resRepComplaints.body.content.length, 'GET /api/representative/complaints/stats calculates area-specific total matching jurisdiction count');
+        assert(resRepStats.body.completed !== undefined, 'Representative stats include completed work count');
 
-        // 10c. Backend Authorization: Attempting to modify a complaint outside jurisdiction returns 403 Forbidden!
+        // 10d. Backend Authorization: Attempting to modify a complaint outside jurisdiction returns 403 Forbidden!
         const resCrossWardEscalate = await mockCall('PUT', '/api/representative/complaints/3/escalate', null, { authorization: `Bearer ${tokens['representative']}` });
         assert(resCrossWardEscalate.status === 403, 'PUT /api/representative/complaints/3/escalate returns 403 Forbidden for cross-ward access attempt');
 
         const resWard12Escalate = await mockCall('PUT', '/api/representative/complaints/1/escalate', null, { authorization: `Bearer ${tokens['representative']}` });
         assert(resWard12Escalate.status === 200, 'PUT /api/representative/complaints/1/escalate succeeds for complaint inside representative jurisdiction');
+
+        // 10e. Representative endorses completed work in their area
+        const resEndorse = await mockCall('PUT', '/api/representative/complaints/1/endorse', null, { authorization: `Bearer ${tokens['representative']}` });
+        assert(resEndorse.status === 200 && resEndorse.body.newStatus === 'CLOSED', 'Representative endorses completed work order inside jurisdiction');
 
         // 11. AI Triage & Vision Analysis
         const resAiAnalyze = await mockCall('POST', '/api/ai/analyze-complaint', {

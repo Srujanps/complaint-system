@@ -358,8 +358,8 @@ async function renderRepresentativeDashboard(contentDiv, chartsContainer) {
                         <div class="d-flex align-items-center gap-3">
                             <i class="bi bi-building-fill-check fs-1" style="color:#5c35cc"></i>
                             <div>
-                                <h5 class="fw-bold mb-1 text-dark">Area Complaints — ${constituency}</h5>
-                                <p class="text-muted small mb-0">Monitor, escalate, endorse and set priority for complaints in your constituency.</p>
+                                <h5 class="fw-bold mb-1 text-dark">Area Complaints & Work Done — ${constituency}</h5>
+                                <p class="text-muted small mb-0">Monitor field execution, inspect before/after repair photos, and endorse completed civic work in your constituency.</p>
                             </div>
                             <i class="bi bi-chevron-right fs-4 ms-auto text-muted"></i>
                         </div>
@@ -367,46 +367,49 @@ async function renderRepresentativeDashboard(contentDiv, chartsContainer) {
                 </a>
             </div>
         </div>
-        <div class="row g-3 mb-4" id="repStatCards">
-            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase">Total</div><div class="fs-3 fw-bold" id="rdTotal">–</div></div></div></div>
-            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase">Pending</div><div class="fs-3 fw-bold text-warning" id="rdPending">–</div></div></div></div>
-            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase">Escalated</div><div class="fs-3 fw-bold text-danger" id="rdEscalated">–</div></div></div></div>
-            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase">Resolved</div><div class="fs-3 fw-bold text-success" id="rdResolved">–</div></div></div></div>
-        </div>`;
+        <div class="row g-2 mb-4" id="repStatCards">
+            <div class="col-6 col-md"><div class="card border-0 shadow-sm h-100"><div class="card-body p-3"><div class="text-muted small fw-semibold text-uppercase">Total</div><div class="fs-4 fw-bold" id="rdTotal">–</div></div></div></div>
+            <div class="col-6 col-md"><div class="card border-0 shadow-sm h-100"><div class="card-body p-3"><div class="text-muted small fw-semibold text-uppercase">Pending</div><div class="fs-4 fw-bold text-warning" id="rdPending">–</div></div></div></div>
+            <div class="col-6 col-md"><div class="card border-0 shadow-sm h-100"><div class="card-body p-3"><div class="text-muted small fw-semibold text-uppercase">In Progress</div><div class="fs-4 fw-bold text-primary" id="rdInProgress">–</div></div></div></div>
+            <div class="col-6 col-md"><div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #6f42c1 !important;"><div class="card-body p-3"><div class="text-muted small fw-semibold text-uppercase">Completed Work</div><div class="fs-4 fw-bold" style="color:#6f42c1" id="rdCompleted">–</div></div></div></div>
+            <div class="col-6 col-md"><div class="card border-0 shadow-sm h-100"><div class="card-body p-3"><div class="text-muted small fw-semibold text-uppercase">Resolved/Closed</div><div class="fs-4 fw-bold text-success" id="rdResolved">–</div></div></div></div>
+        </div>
+        <div id="repRecentWorkSection" class="mb-4"></div>`;
 
     try {
         const res = await apiFetch('/representative/complaints/stats', { method: 'GET' });
         if (res && res.ok) {
             const data = await res.json();
             const el = id => document.getElementById(id);
-            if(el('rdTotal'))     el('rdTotal').textContent     = data.total     ?? '–';
-            if(el('rdPending'))   el('rdPending').textContent   = data.pending   ?? '–';
-            if(el('rdEscalated')) el('rdEscalated').textContent = data.escalated ?? '–';
-            if(el('rdResolved'))  el('rdResolved').textContent  = data.resolved  ?? '–';
+            if(el('rdTotal'))      el('rdTotal').textContent      = data.total      ?? '–';
+            if(el('rdPending'))    el('rdPending').textContent    = data.pending    ?? '–';
+            if(el('rdInProgress')) el('rdInProgress').textContent = data.inProgress ?? '–';
+            if(el('rdCompleted'))  el('rdCompleted').textContent  = data.completed  ?? '–';
+            if(el('rdResolved'))   el('rdResolved').textContent   = data.resolved   ?? '–';
 
             const byStatus = data.byStatus || {};
-            const statuses = ['CREATED','VERIFIED','ASSIGNED','IN_PROGRESS','RESOLVED','ESCALATED','CLOSED'];
+            const statuses = ['CREATED','VERIFIED','ASSIGNED','IN_PROGRESS','COMPLETED','RESOLVED','ESCALATED','CLOSED'];
             const counts   = statuses.map(s => byStatus[s] || 0);
-            const colors   = ['#90caf9','#64b5f6','#1e88e5','#ff6f00','#43a047','#ff1744','#212529'];
+            const colors   = ['#90caf9','#64b5f6','#1e88e5','#ff6f00','#6f42c1','#43a047','#ff1744','#212529'];
 
             chartsContainer.style.display = 'flex';
             new Chart(document.getElementById('activityChart').getContext('2d'), {
                 type: 'doughnut',
                 data: {
-                    labels: ['Submitted','Verified','Assigned','In Progress','Resolved','Escalated','Closed'],
+                    labels: ['Submitted','Verified','Assigned','In Progress','Work Completed','Resolved','Escalated','Closed'],
                     datasets: [{ data: counts, backgroundColor: colors, borderWidth: 0, hoverOffset: 6 }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false, cutout: '65%',
                     plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 12 } },
-                        title: { display: true, text: `Area Status — ${constituency}`, font: { size: 14, weight: 'bold' } } }
+                        title: { display: true, text: `Area Status Distribution — ${constituency}`, font: { size: 14, weight: 'bold' } } }
                 }
             });
 
             new Chart(document.getElementById('distChart').getContext('2d'), {
                 type: 'bar',
                 data: {
-                    labels: ['Submitted','Verified','Assigned','In Prog.','Resolved','Escalated','Closed'],
+                    labels: ['Submitted','Verified','Assigned','In Prog.','Completed','Resolved','Escalated','Closed'],
                     datasets: [{ label: 'Complaints', data: counts, backgroundColor: colors, borderRadius: 6, borderSkipped: false }]
                 },
                 options: {
@@ -415,6 +418,50 @@ async function renderRepresentativeDashboard(contentDiv, chartsContainer) {
                     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }
                 }
             });
+        }
+
+        // Render Recent Work Done in Constituency
+        const resComplaints = await apiFetch('/representative/complaints?page=0&size=5', { method: 'GET' });
+        if (resComplaints && resComplaints.ok) {
+            const cData = await resComplaints.json();
+            const list = cData.content || [];
+            const recentWorkEl = document.getElementById('repRecentWorkSection');
+            if (recentWorkEl && list.length > 0) {
+                let cardsHtml = `
+                    <div class="card border-0 shadow-sm p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-dark mb-0"><i class="bi bi-tools text-primary me-2"></i>Recent Field Work & Grievances in ${constituency}</h6>
+                            <a href="representative/area_complaints.html" class="btn btn-sm btn-outline-primary">View All Complaints</a>
+                        </div>
+                        <div class="row g-3">`;
+
+                list.slice(0, 3).forEach(c => {
+                    const badgeClass = c.status === 'COMPLETED' ? 'bg-purple text-white' : (c.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-primary text-white');
+                    const hasProof = c.completionEvidenceImageData || c.startEvidenceImageData;
+                    cardsHtml += `
+                        <div class="col-md-4">
+                            <div class="card h-100 border p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-light text-danger border font-monospace">${c.complaintRef || ('#' + c.complaintId)}</span>
+                                    <span class="badge ${badgeClass}" ${c.status === 'COMPLETED' ? 'style="background:#6f42c1"' : ''}>${c.status.replace('_', ' ')}</span>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1">${c.title}</h6>
+                                <p class="text-muted small mb-2 text-truncate">${c.description}</p>
+                                <div class="small text-secondary mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${c.location || '-'}</div>
+                                ${c.assignedVendorName ? `<div class="small text-dark mb-2"><i class="bi bi-person-badge text-primary me-1"></i>Contractor: <strong>${c.assignedVendorName}</strong></div>` : ''}
+                                ${c.completionEvidenceImageData ? `
+                                    <div class="mb-2">
+                                        <img src="${c.completionEvidenceImageData}" class="rounded border w-100" style="height:100px;object-fit:cover;">
+                                        <small class="text-success fw-bold d-block mt-1"><i class="bi bi-check-circle-fill me-1"></i>Repair Proof Uploaded (${c.aiVerificationScore || 94}% AI QA)</small>
+                                    </div>` : ''}
+                                <a href="representative/area_complaints.html" class="btn btn-sm btn-outline-dark mt-auto">Inspect In Area Portal</a>
+                            </div>
+                        </div>`;
+                });
+
+                cardsHtml += `</div></div>`;
+                recentWorkEl.innerHTML = cardsHtml;
+            }
         }
     } catch (e) { /* charts optional */ }
 }

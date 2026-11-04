@@ -2,6 +2,7 @@ let allComplaints = [];
 let activeStatusFilter = 'ALL';
 let priorityModal;
 let remarkModal;
+let workDoneModal;
 
 document.addEventListener('DOMContentLoaded', () => {
     if (!localStorage.getItem('token') || localStorage.getItem('role') !== 'REPRESENTATIVE') {
@@ -17,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     priorityModal = new bootstrap.Modal(document.getElementById('priorityModal'));
     remarkModal   = new bootstrap.Modal(document.getElementById('remarkModal'));
+    const wdEl = document.getElementById('workDoneModal');
+    if (wdEl) workDoneModal = new bootstrap.Modal(wdEl);
 
     window.addEventListener('languageChanged', () => {
         if (window.i18n) window.i18n.applyToPage();
@@ -34,10 +37,13 @@ async function loadStats() {
         const res = await apiFetch('/representative/complaints/stats', { method: 'GET' });
         if (res && res.ok) {
             const data = await res.json();
-            document.getElementById('statTotal').textContent     = data.total     ?? '–';
-            document.getElementById('statPending').textContent   = data.pending   ?? '–';
-            document.getElementById('statEscalated').textContent = data.escalated ?? '–';
-            document.getElementById('statResolved').textContent  = data.resolved  ?? '–';
+            const el = id => document.getElementById(id);
+            if (el('statTotal')) el('statTotal').textContent         = data.total ?? '–';
+            if (el('statPending')) el('statPending').textContent     = data.pending ?? '–';
+            if (el('statInProgress')) el('statInProgress').textContent = data.inProgress ?? '–';
+            if (el('statCompleted')) el('statCompleted').textContent   = data.completed ?? '–';
+            if (el('statResolved')) el('statResolved').textContent   = data.resolved ?? '–';
+            if (el('statEscalated')) el('statEscalated').textContent = data.escalated ?? '–';
         }
     } catch (e) { /* optional */ }
 }
@@ -73,7 +79,13 @@ function renderTable() {
     const priorityFilter = document.getElementById('priorityFilter').value;
 
     let list = allComplaints;
-    if (activeStatusFilter !== 'ALL') list = list.filter(c => c.status === activeStatusFilter);
+    if (activeStatusFilter !== 'ALL') {
+        if (activeStatusFilter === 'RESOLVED') {
+            list = list.filter(c => c.status === 'RESOLVED' || c.status === 'CLOSED');
+        } else {
+            list = list.filter(c => c.status === activeStatusFilter);
+        }
+    }
     if (priorityFilter !== 'ALL')     list = list.filter(c => (c.priority || 'MEDIUM') === priorityFilter);
 
     if (list.length === 0) {
@@ -86,34 +98,80 @@ function renderTable() {
         const priority = c.priority || 'MEDIUM';
         const statusBadge = getStatusBadge(c.status);
 
+        const hasWorkDone = !!(c.completionEvidenceImageData || c.startEvidenceImageData || ['COMPLETED', 'RESOLVED', 'CLOSED', 'IN_PROGRESS'].includes(c.status));
         const canEscalate = !['RESOLVED', 'CLOSED', 'ESCALATED'].includes(c.status);
-        const canEndorse  = c.status === 'RESOLVED';
+        const canEndorse  = ['COMPLETED', 'RESOLVED'].includes(c.status);
 
         const actions = `
             <div class="d-flex justify-content-end gap-2 flex-wrap">
+                ${hasWorkDone ? `<button class="btn btn-sm btn-success fw-bold" onclick="openWorkDoneModal(${c.complaintId})"><i class="bi bi-patch-check-fill me-1"></i>View Work Done</button>` : ''}
                 <button class="btn btn-sm btn-outline-primary" onclick="openRepAiChecklistModal('${encodeURIComponent(c.title || '')}', '${encodeURIComponent(c.categoryName || '')}')"><i class="bi bi-card-checklist me-1"></i>AI Checklist</button>
                 <button class="btn btn-sm btn-outline-danger" onclick="openEscalationMemoModal(${c.complaintId})"><i class="bi bi-file-earmark-text me-1"></i>AI Memo</button>
                 <button class="btn btn-sm btn-outline-warning" onclick="openPriorityModal(${c.complaintId})"><i class="bi bi-flag-fill me-1"></i>Priority</button>
                 <button class="btn btn-sm btn-outline-secondary" onclick="openRemarkModal(${c.complaintId})"><i class="bi bi-chat-left-text me-1"></i>Remark</button>
                 ${canEscalate ? `<button class="btn btn-sm btn-outline-danger" onclick="escalate(${c.complaintId})"><i class="bi bi-exclamation-triangle me-1"></i>Escalate</button>` : ''}
-                ${canEndorse ? `<button class="btn btn-sm btn-outline-dark" onclick="endorse(${c.complaintId})"><i class="bi bi-lock-fill me-1"></i>Endorse</button>` : ''}
+                ${canEndorse ? `<button class="btn btn-sm btn-dark" onclick="endorse(${c.complaintId})"><i class="bi bi-shield-check me-1"></i>Endorse</button>` : ''}
             </div>`;
-
 
         const aiCat = c.aiCategory || c.aiCategoryName || c.categoryName || 'Unassigned';
         const aiScore = c.aiSeverity || c.aiSeverityScore || c.severityScore || 5;
         const aiLang = c.detectedLanguage ? ` | Lang: ${c.detectedLanguage.toUpperCase()}` : '';
         const aiBadge = `<div class="mt-1"><span class="badge bg-purple"><i class="bi bi-cpu-fill me-1"></i>AI Cat: ${aiCat} (${aiScore}/10${aiLang})</span></div>`;
 
+        // Contractor / Field Work badge
+        let contractorLine = '';
+        if (c.assignedVendorName || c.assignedVendorUsername) {
+            contractorLine = `
+                <div class="small text-muted mt-1">
+                    <i class="bi bi-person-badge text-primary me-1"></i>Contractor: <strong>${c.assignedVendorName || c.assignedVendorUsername}</strong>
+                    ${c.workOrderNumber ? `· <span class="badge bg-light text-danger border font-monospace">${c.workOrderNumber}</span>` : ''}
+                </div>`;
+        }
+
+        // On-Site Evidence Thumbnail & GPS Tag
+        let workDonePreview = '';
+        if (c.completionEvidenceImageData || c.status === 'COMPLETED' || c.status === 'RESOLVED') {
+            workDonePreview = `
+                <div class="mt-2 p-2 rounded bg-success-subtle border border-success">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="badge bg-success"><i class="bi bi-patch-check-fill me-1"></i>Work Done Proof</span>
+                        ${c.aiVerificationScore ? `<span class="badge bg-dark">AI QA: ${c.aiVerificationScore}%</span>` : ''}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${c.completionEvidenceImageData ? `<img src="${c.completionEvidenceImageData}" alt="Repair photo" class="rounded border" style="height:55px;width:75px;object-fit:cover;cursor:pointer" onclick="openWorkDoneModal(${c.complaintId})" title="Click to view work done proof">` : ''}
+                        <div class="small">
+                            <div class="text-dark fw-bold">${c.completionNotes || c.resolutionNote || 'Repair executed according to municipal specifications.'}</div>
+                            ${c.completionLatitude ? `<div class="text-success" style="font-size:0.75rem"><i class="bi bi-pin-map-fill me-1"></i>Repair GPS: <strong>${c.completionLatitude}, ${c.completionLongitude}</strong></div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+        } else if (c.startEvidenceImageData || c.status === 'IN_PROGRESS') {
+            workDonePreview = `
+                <div class="mt-2 p-2 rounded bg-light border border-warning">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="badge bg-warning text-dark"><i class="bi bi-tools me-1"></i>Field Work In Progress</span>
+                        ${c.startLatitude ? `<span class="text-muted" style="font-size:0.75rem">📍 ${c.startLatitude}, ${c.startLongitude}</span>` : ''}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${c.startEvidenceImageData ? `<img src="${c.startEvidenceImageData}" alt="Site inspection photo" class="rounded border" style="height:50px;width:70px;object-fit:cover;cursor:pointer" onclick="openWorkDoneModal(${c.complaintId})">` : ''}
+                        <div class="small text-muted">${c.fieldNotes || 'Field team arrived on-site with tools & equipment.'}</div>
+                    </div>
+                </div>`;
+        }
+
         tbody.innerHTML += `
             <tr>
                 <td class="ps-4 fw-bold">#${c.complaintId}</td>
                 <td>
                     <div class="fw-bold text-dark">${c.title}</div>
-                    <small class="text-muted">${c.categoryName || 'General'} · ${c.citizenName || ''}</small>
+                    <small class="text-muted">${c.categoryName || 'General'} · ${c.citizen ? c.citizen.fullName : (c.citizenName || '')}</small>
                     ${aiBadge}
+                    ${contractorLine}
+                    ${workDonePreview}
                 </td>
-                <td class="text-muted small">${c.location || '-'}</td>
+                <td class="text-muted small">
+                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>${c.location || '-'}
+                </td>
                 <td>${statusBadge}</td>
                 <td><span class="badge bg-purple">${priority}</span></td>
                 <td class="pe-4">${actions}</td>
@@ -124,17 +182,23 @@ function renderTable() {
 
 function getStatusBadge(status) {
     const map = {
-        CREATED:    'bg-info text-dark',
-        VERIFIED:   'bg-primary text-white',
-        ASSIGNED:   'bg-primary text-white',
-        IN_PROGRESS:'text-white',
-        RESOLVED:   'bg-success text-white',
-        ESCALATED:  'bg-danger text-white',
-        CLOSED:     'bg-dark text-white',
+        CREATED:         'bg-info text-dark',
+        VERIFIED:        'bg-primary text-white',
+        ASSIGNED:        'bg-primary text-white',
+        VENDOR_ACCEPTED: 'bg-warning text-dark',
+        IN_PROGRESS:     'text-white',
+        COMPLETED:       'text-white',
+        RESOLVED:        'bg-success text-white',
+        ESCALATED:       'bg-danger text-white',
+        CLOSED:          'bg-dark text-white',
     };
     const cls = map[status] || 'bg-secondary text-white';
-    const style = status === 'IN_PROGRESS' ? ' style="background:#ff6f00"' : '';
-    return `<span class="s-badge badge ${cls}"${style}>${status}</span>`;
+    let style = '';
+    if (status === 'IN_PROGRESS') style = ' style="background:#ff6f00"';
+    else if (status === 'COMPLETED') style = ' style="background:#6f42c1"';
+
+    const label = status === 'COMPLETED' ? 'COMPLETED (WORK DONE)' : status.replace('_', ' ');
+    return `<span class="s-badge badge ${cls}"${style}>${label}</span>`;
 }
 
 function openPriorityModal(id) {
@@ -296,5 +360,101 @@ function copyEscalationMemo() {
         });
     }
 }
+
+function openWorkDoneModal(id) {
+    const c = allComplaints.find(k => k.complaintId === id);
+    if (!c) return;
+
+    const body = document.getElementById('workDoneModalBody');
+    const footer = document.getElementById('workDoneModalFooter');
+
+    const beforeImg = c.evidenceImageData ? `<img src="${c.evidenceImageData}" class="img-fluid rounded border shadow-sm" style="max-height:220px;width:100%;object-fit:cover;">` : '<div class="p-4 bg-light rounded text-center text-muted small">No citizen image provided</div>';
+    const compImg = c.completionEvidenceImageData ? `<img src="${c.completionEvidenceImageData}" class="img-fluid rounded border border-success shadow-sm" style="max-height:220px;width:100%;object-fit:cover;">` : '<div class="p-4 bg-light rounded text-center text-muted small"><i class="bi bi-clock-history d-block fs-3 mb-1 text-warning"></i>Field repair work in progress; completion photo pending</div>';
+
+    const canEndorse = ['COMPLETED', 'RESOLVED'].includes(c.status);
+
+    body.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+            <div>
+                <span class="badge bg-danger font-monospace fs-6 me-2">${c.complaintRef || ('#' + c.complaintId)}</span>
+                ${getStatusBadge(c.status)}
+            </div>
+            <div class="text-end text-muted small">
+                <strong>Priority:</strong> <span class="badge bg-purple">${c.priority || 'MEDIUM'}</span>
+            </div>
+        </div>
+
+        <h5 class="fw-bold text-dark mb-1">${c.title}</h5>
+        <p class="text-secondary small mb-3">${c.description}</p>
+
+        <div class="p-2 bg-light rounded border mb-3 small">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+                <span><i class="bi bi-geo-alt-fill text-danger me-1"></i><strong>Location:</strong> ${c.location || '-'}</span>
+                <span><i class="bi bi-person-badge text-primary me-1"></i><strong>Assigned Contractor:</strong> ${c.assignedVendorName || 'Civic Works Squad'} (@${c.assignedVendorUsername || 'vendor'})</span>
+                <span><i class="bi bi-file-earmark-ruled text-dark me-1"></i><strong>Work Order:</strong> <span class="font-monospace text-danger">${c.workOrderNumber || 'WO-2026-ID-' + c.complaintId}</span></span>
+            </div>
+        </div>
+
+        <!-- Before vs After Comparison Grid -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="card h-100 border">
+                    <div class="card-header bg-light py-2 fw-bold small text-dark d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-camera me-1 text-danger"></i> 1. Before (Reported Issue)</span>
+                        <span class="badge bg-secondary">Citizen Evidence</span>
+                    </div>
+                    <div class="card-body p-2">
+                        ${beforeImg}
+                        <div class="mt-2 small text-muted">
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>${c.location || '-'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100 border border-success">
+                    <div class="card-header bg-success-subtle py-2 fw-bold small text-success d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-patch-check-fill me-1 text-success"></i> 2. After (Completed Work Proof)</span>
+                        ${c.aiVerificationScore ? `<span class="badge bg-success">AI QA Passed: ${c.aiVerificationScore}%</span>` : `<span class="badge bg-warning text-dark">Work In Progress</span>`}
+                    </div>
+                    <div class="card-body p-2">
+                        ${compImg}
+                        <div class="mt-2 small">
+                            <div class="text-dark fw-bold">${c.completionNotes || c.resolutionNote || 'Awaiting contractor repair completion note'}</div>
+                            ${c.completionLatitude ? `<div class="text-success mt-1"><i class="bi bi-pin-map-fill me-1"></i><strong>Verified Completion GPS:</strong> ${c.completionLatitude}, ${c.completionLongitude}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stage 1 Site Inspection Record (if available) -->
+        ${c.startEvidenceImageData || c.startLatitude ? `
+            <div class="p-3 bg-light rounded border mb-3 small">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong class="text-dark"><i class="bi bi-shield-check text-warning me-1"></i> Stage 1: On-Site Inspection Evidence</strong>
+                    <span class="badge bg-warning text-dark">Arrival Verified</span>
+                </div>
+                <div class="text-muted mb-2"><strong>Field Notes:</strong> ${c.fieldNotes || 'Field crew arrived on site with safety cones & machinery.'}</div>
+                <div class="d-flex align-items-center gap-3">
+                    ${c.startEvidenceImageData ? `<img src="${c.startEvidenceImageData}" class="rounded border" style="height:70px;width:100px;object-fit:cover;">` : ''}
+                    <div>
+                        <div><strong>Site GPS Tag:</strong> 📍 ${c.startLatitude || c.latitude}, ${c.startLongitude || c.longitude}</div>
+                        <div class="text-muted" style="font-size:0.75rem">Recorded via device GPS during initial field arrival.</div>
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+    `;
+
+    footer.innerHTML = `
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-outline-warning" onclick="workDoneModal.hide(); openRemarkModal(${c.complaintId})"><i class="bi bi-chat-left-text me-1"></i> Add Remark</button>
+        ${canEndorse ? `<button type="button" class="btn btn-success fw-bold" onclick="workDoneModal.hide(); endorse(${c.complaintId})"><i class="bi bi-shield-check me-1"></i> Endorse & Approve Work</button>` : ''}
+    `;
+
+    workDoneModal.show();
+}
+
 
 
