@@ -580,9 +580,12 @@ async function handleRequest(req, res) {
 
     // Parse URL & Query
     const host = req.headers.host || 'localhost';
-    const parsedUrl = new URL(req.url, `http://${host}`);
+    const effectiveUrl = (req.headers['x-matched-path'] && req.headers['x-matched-path'] !== '/api/index.js')
+        ? req.headers['x-matched-path']
+        : req.url;
+    const parsedUrl = new URL(effectiveUrl, `http://${host}`);
     let pathname = parsedUrl.pathname;
-    const query = Object.fromEntries(parsedUrl.searchParams);
+    const query = Object.assign({}, Object.fromEntries(parsedUrl.searchParams), req.query || {});
 
     // Normalize pathname
     if (pathname.endsWith('/') && pathname.length > 1) {
@@ -1600,3 +1603,4 @@ module.exports = {
     signJwt,
     verifyJwt
 };
+

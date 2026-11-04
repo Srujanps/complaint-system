@@ -72,3 +72,4 @@ This builds and verifies the static assets in `/public` ready for Vercel or clou
 4. Output Directory: **public** (configured in `vercel.json`).
 5. (Optional) Set `GEMINI_API_KEY` in Vercel Environment Variables.
 6. Deploy!
+

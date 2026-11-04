@@ -8,3 +8,8 @@ Complaint-system/target/
 target/
 .DS_Store
 Thumbs.db
+
+.vercel
+
+.vercel
+.env*

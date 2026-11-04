@@ -66,12 +66,15 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(PORT, () => {
-    console.log(`\n======================================================`);
-    console.log(`🚀 Grievance Management System is running!`);
-    console.log(`🌐 Local URL: http://localhost:${PORT}`);
-    console.log(`📡 API URL:   http://localhost:${PORT}/api`);
-    console.log(`======================================================\n`);
-});
+if (require.main === module) {
+    server.listen(PORT, () => {
+        console.log(`\n======================================================`);
+        console.log(`🚀 Grievance Management System is running!`);
+        console.log(`🌐 Local URL: http://localhost:${PORT}`);
+        console.log(`📡 API URL:   http://localhost:${PORT}/api`);
+        console.log(`======================================================\n`);
+    });
+}
 
 module.exports = server;
+

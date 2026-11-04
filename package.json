@@ -2,7 +2,6 @@
   "name": "complaint-system",
   "version": "1.0.0",
   "description": "Civic Grievance Redressal and Management System with AI Triage",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
