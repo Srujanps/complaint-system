@@ -587,6 +587,22 @@ async function handleRequest(req, res) {
     let pathname = parsedUrl.pathname;
     const query = Object.assign({}, Object.fromEntries(parsedUrl.searchParams), req.query || {});
 
+    // Support Vercel serverless rewrites (e.g. /api/(.*) -> /api/index.js?path=$1)
+    let pathParam = query.path || (req.query && req.query.path);
+    if (Array.isArray(pathParam)) {
+        pathParam = pathParam.join('/');
+    }
+    if (!pathParam && req.headers['x-now-route-matches']) {
+        const match = req.headers['x-now-route-matches'].match(/1=([^&]+)/);
+        if (match) pathParam = decodeURIComponent(match[1]);
+    }
+    if (pathParam && (pathname === '/api/index.js' || pathname === '/api' || pathname === '/api/index' || pathname === '/api/')) {
+        const clean = pathParam.split('?')[0].replace(/^\/+/, '');
+        pathname = `/api/${clean}`;
+    } else if (pathname === '/api/index.js' || pathname === '/api/index') {
+        pathname = '/api';
+    }
+
     // Normalize pathname
     if (pathname.endsWith('/') && pathname.length > 1) {
         pathname = pathname.slice(0, -1);
@@ -634,6 +650,15 @@ async function handleRequest(req, res) {
     }
 
     try {
+        // Base API & Health check
+        if (pathname === '/api' || pathname === '/api/health') {
+            return sendJson(200, {
+                status: 'UP',
+                service: 'Civic Grievance Management System API',
+                version: '1.0.0',
+                timestamp: new Date().toISOString()
+            });
+        }
         // ─────────────────────────────────────────────────────────────────
         // 1. AUTH ROUTES (/api/auth/*)
         // ─────────────────────────────────────────────────────────────────
