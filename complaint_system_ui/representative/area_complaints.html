@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Area Complaints – Representative Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../commons/ui_utils.css">
+    <link rel="stylesheet" href="../commons/navbar.css">
+    <style>
+        .s-badge { font-weight: 600; }
+        .bg-purple { background:#5c35cc; }
+        .table td, .table th { vertical-align: middle; }
+    </style>
+</head>
+<body class="bg-light">
+
+    <div id="navbar-placeholder"></div>
+
+    <div class="container mt-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h4 class="mb-1" data-i18n-key="rep_area_title">Area Complaints</h4>
+                <div class="text-muted small"><span id="repDesignationLabel">Representative</span> · <span id="repAreaLabel">My Area</span></div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" id="priorityFilter" style="width:170px" onchange="applyFilters()">
+                    <option value="ALL">All Priorities</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadAll()"><i class="bi bi-arrow-repeat me-1"></i><span data-i18n-key="btn_refresh">Refresh</span></button>
+            </div>
+        </div>
+
+        <!-- AI Ward Briefing Card -->
+        <div class="card border-0 shadow-sm mb-3 bg-white" style="border-left: 4px solid #5c35cc !important;">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge" style="background:#5c35cc; font-size:0.85rem;"><i class="bi bi-robot me-1"></i> AI Ward Pulse</span>
+                    <span class="text-dark small" id="aiRepBriefingText">Analyzing constituency grievances...</span>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="loadRepAiBriefing()"><i class="bi bi-arrow-repeat me-1"></i>Refresh Briefing</button>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase" data-i18n-key="stat_total">Total</div><div class="fs-3 fw-bold" id="statTotal">–</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase" data-i18n-key="stat_pending">Pending</div><div class="fs-3 fw-bold text-warning" id="statPending">–</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase" data-i18n-key="stat_escalated">Escalated</div><div class="fs-3 fw-bold text-danger" id="statEscalated">–</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><div class="text-muted small fw-semibold text-uppercase" data-i18n-key="stat_resolved">Resolved</div><div class="fs-3 fw-bold text-success" id="statResolved">–</div></div></div></div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-2" id="filterTabs">
+            <button class="btn btn-sm btn-outline-secondary active" onclick="filterByStatus('ALL', this)" data-i18n-key="filter_all">All</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('CREATED', this)" data-i18n-key="filter_submitted">Submitted</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('ASSIGNED', this)" data-i18n-key="filter_assigned">Assigned</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('IN_PROGRESS', this)" data-i18n-key="filter_in_progress">In Progress</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('RESOLVED', this)" data-i18n-key="filter_resolved">Resolved</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('ESCALATED', this)" data-i18n-key="filter_escalated">Escalated</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="filterByStatus('CLOSED', this)" data-i18n-key="filter_closed">Closed</button>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 py-3">
+                <h6 class="mb-0 fw-bold" data-i18n-key="active_complaints_title">Complaints in Your Constituency</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light text-muted">
+                            <tr>
+                                <th class="ps-4">ID</th>
+                                <th>Complaint</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="complaintsTableBody">
+                            <tr><td colspan="6" class="text-center py-4"><div class="spinner-border" style="color:#5c35cc"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Priority modal -->
+    <div class="modal fade" id="priorityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header" style="background:#5c35cc;color:#fff">
+                    <h5 class="modal-title">Set Priority</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-muted small mb-2">Complaint <span class="fw-bold" id="priorityComplaintLabel">#</span></div>
+                    <input type="hidden" id="priorityComplaintId">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-danger" onclick="confirmPriority('CRITICAL')">Critical</button>
+                        <button class="btn btn-warning" onclick="confirmPriority('HIGH')">High</button>
+                        <button class="btn btn-primary" onclick="confirmPriority('MEDIUM')">Medium</button>
+                        <button class="btn btn-secondary" onclick="confirmPriority('LOW')">Low</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remark modal (extra feature) -->
+    <div class="modal fade" id="remarkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header" style="background:#ff6f00;color:#fff">
+                    <h5 class="modal-title">Add Official Remark</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-muted small mb-2">Complaint <span class="fw-bold" id="remarkComplaintLabel">#</span></div>
+                    <input type="hidden" id="remarkComplaintId">
+                    <textarea class="form-control" id="remarkText" rows="4" placeholder="Write your instruction / note for officers and vendors..."></textarea>
+                    <div class="text-muted small mt-2">Saving a remark auto-raises priority to at least HIGH.</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-warning text-dark" onclick="saveRemark()">Save Remark</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Field Checklist Modal -->
+    <div class="modal fade" id="repAiChecklistModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background:#5c35cc;">
+                    <h5 class="modal-title"><i class="bi bi-card-checklist me-2"></i> AI Field Inspection Protocol</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="fw-bold text-dark" id="repAiTaskTitle">Task Inspection Steps</h6>
+                    <div id="repAiStepsList" class="list-group list-group-flush mb-3">
+                        <div class="list-group-item">Generating field checklist...</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+    <!-- AI Escalation Memo Modal -->
+    <div class="modal fade" id="repEscalationModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background:#dc3545;">
+                    <h5 class="modal-title"><i class="bi bi-file-earmark-text-fill me-2"></i> Official Escalation Memorandum (AI Generated)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">AI-drafted executive memorandum for submission to Municipal Commissioner & Department Engineers.</p>
+                    <textarea id="repMemoTextArea" class="form-control font-monospace p-3 bg-light" rows="12"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" onclick="copyEscalationMemo()"><i class="bi bi-clipboard me-1"></i> Copy Memo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="../commons/ai_assistant.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../commons/ui_utils.js"></script>
+    <script src="../commons/API.js"></script>
+    <script src="../commons/i18n.js"></script>
+    <script src="../commons/navbar.js"></script>
+    <script src="../commons/ai_assistant.js"></script>
+    <script src="js/area_complaints.js"></script>
+</body>
+</html>
+
+
+

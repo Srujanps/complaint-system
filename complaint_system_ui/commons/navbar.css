@@ -1,0 +1,52 @@
+/* Navbar styling */
+.navbar {
+    background-color: white;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+    padding: 0.8rem 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.navbar-brand img {
+    height: 48px;
+    width: auto;
+    object-fit: contain;
+}
+
+.nav-link {
+    color: #495057;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s;
+}
+
+.nav-link:hover, .nav-link.active {
+    color: var(--primary-orange, #ff6f00);
+}
+
+/* Profile Icon Dropdown */
+.profile-btn {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.profile-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(255, 111, 0, 0.1);
+    color: var(--primary-orange, #ff6f00);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    border: 2px solid rgba(255, 111, 0, 0.2);
+    transition: all 0.2s;
+}
+
+.profile-btn:hover .profile-icon {
+    background-color: var(--primary-orange, #ff6f00);
+    color: white;
+}

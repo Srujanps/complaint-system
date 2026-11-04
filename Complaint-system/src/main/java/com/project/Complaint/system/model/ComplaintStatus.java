@@ -1,0 +1,24 @@
+package com.project.Complaint.system.model;
+
+public enum ComplaintStatus {
+    CREATED,
+    RECEIVED,
+    OFFICER_REVIEW,
+    VERIFIED,
+    INSPECTION_SCHEDULED,
+    INSPECTION_COMPLETED,
+    ASSIGNED,
+    VENDOR_ACCEPTED,
+    IN_PROGRESS,
+    COMPLETED,
+    OFFICER_VERIFICATION,
+    RESOLVED,
+    PENDING,
+    DUPLICATE,
+    FLAGGED_DUPLICATE,
+    ESCALATED,
+    REOPEN_REQUEST,
+    REOPENED,
+    REJECTED,
+    CLOSED
+}

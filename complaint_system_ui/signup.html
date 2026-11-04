@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civic Grievance System - Sign Up</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="commons/ui_utils.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --primary-accent: #FF6F00;
+            --primary-gradient: linear-gradient(135deg, #FF6F00 0%, #FF9100 100%);
+            --dark-bg: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        /* Top Brand Navigation Bar */
+        .app-nav-bar {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.85rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            height: 38px;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 8px rgba(255, 111, 0, 0.4));
+        }
+
+        .brand-text {
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: #ffffff;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-badge {
+            background: rgba(255, 111, 0, 0.15);
+            color: #ff9100;
+            border: 1px solid rgba(255, 111, 0, 0.3);
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 20px;
+        }
+
+        .lang-switcher-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 6px 14px;
+            border-radius: 30px;
+            transition: all 0.25s ease;
+        }
+
+        .lang-switcher-pill:hover {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 111, 0, 0.4);
+        }
+
+        .lang-select-dropdown {
+            background: transparent;
+            color: #ffffff;
+            border: none;
+            outline: none;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+        }
+
+        .lang-select-dropdown option {
+            background: #1e293b;
+            color: #ffffff;
+        }
+
+        /* Signup Container Layout */
+        .signup-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2.5rem 1.25rem;
+            position: relative;
+        }
+
+        .glow-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.25;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb-1 {
+            width: 450px;
+            height: 450px;
+            background: #ff6f00;
+            top: 5%;
+            left: 10%;
+        }
+
+        .orb-2 {
+            width: 550px;
+            height: 550px;
+            background: #3b82f6;
+            bottom: 5%;
+            right: 10%;
+        }
+
+        .modern-signup-card {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            max-width: 540px;
+            width: 100%;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        .card-top-header {
+            text-align: center;
+            padding: 2.25rem 2rem 1rem 2rem;
+        }
+
+        .card-body-content {
+            padding: 0 2rem 2.25rem 2rem;
+        }
+
+        .form-label {
+            font-size: 0.88rem;
+            color: #334155;
+            margin-bottom: 0.4rem;
+        }
+
+        .form-control, .form-select {
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            border: 1px solid #cbd5e1;
+            font-size: 0.95rem;
+            background-color: #ffffff;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #ff6f00;
+            box-shadow: 0 0 0 0.25rem rgba(255, 111, 0, 0.2);
+        }
+
+        .btn-submit-primary {
+            background: var(--primary-gradient);
+            border: none;
+            color: #ffffff;
+            border-radius: 12px;
+            padding: 0.85rem;
+            font-weight: 600;
+            font-size: 1rem;
+            width: 100%;
+            margin-top: 1.25rem;
+            transition: all 0.25s ease;
+            box-shadow: 0 8px 20px rgba(255, 111, 0, 0.35);
+        }
+
+        .btn-submit-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(255, 111, 0, 0.45);
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.92rem;
+            color: #64748b;
+        }
+
+        .footer-text a {
+            color: #ff6f00;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        .app-footer {
+            background: rgba(15, 23, 42, 0.9);
+            color: #64748b;
+            font-size: 0.82rem;
+            text-align: center;
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header Navigation Bar -->
+    <header class="app-nav-bar">
+        <div class="brand-container">
+            <a href="index.html" class="d-flex align-items-center gap-2 text-decoration-none">
+                <img src="assets/logo.png" alt="Logo" class="brand-logo">
+                <span class="brand-text" data-i18n-key="nav_portal_title">Grievance Hub</span>
+            </a>
+        </div>
+        <div class="d-flex align-items-center gap-1 bg-white px-2 py-1 rounded border shadow-sm">
+            <i class="bi bi-translate text-primary fs-6"></i>
+            <select id="appLangSelect" class="form-select form-select-sm border-0 bg-transparent fw-semibold i18n-lang-select" onchange="window.i18n ? window.i18n.setLanguage(this.value) : localStorage.setItem('preferred_language', this.value);" aria-label="Select Language">
+                <option value="en">English</option>
+                <option value="kn">ಕನ್ನಡ</option>
+                <option value="hi">हिंदी</option>
+                <option value="te">తెలుగు</option>
+                <option value="ta">தமிழ்</option>
+            </select>
+        </div>
+    </header>
+
+    <div class="signup-container">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+
+        <div class="card modern-signup-card">
+            <div class="card-top-header">
+                <h4 class="fw-bold mb-1" style="color: #0f172a;" data-i18n-key="signup_header">Create Your Account</h4>
+                <p class="text-muted small mb-0" data-i18n-key="signup_subtitle">Join the smart civic grievance redressal network</p>
+            </div>
+            <div class="card-body-content">
+                <form id="signupForm" novalidate>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="username" class="form-label fw-bold" data-i18n-key="username_label">Username</label>
+                            <input type="text" class="form-control" id="username" placeholder="johndoe" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fullName" class="form-label fw-bold" data-i18n-key="full_name_label">Full Name</label>
+                            <input type="text" class="form-control" id="fullName" placeholder="John Doe" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-bold" data-i18n-key="email_label">Email Address</label>
+                        <input type="email" class="form-control" id="email" placeholder="john@example.com" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label fw-bold" data-i18n-key="phone_label">Phone Number</label>
+                            <input type="text" class="form-control" id="phone" placeholder="9876543210" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="role" class="form-label fw-bold" data-i18n-key="role_label">Role</label>
+                            <select class="form-select" id="role" required>
+                                <option value="" disabled selected>Select Role</option>
+                                <option value="CITIZEN">Citizen</option>
+                                <option value="REPRESENTATIVE">Representative</option>
+                                <option value="VENDOR">Vendor</option>
+                                <option value="OFFICER">Officer</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="representativeFields" style="display:none">
+                        <div class="mb-3">
+                            <label for="constituency" class="form-label fw-bold">Constituency / Area</label>
+                            <input type="text" class="form-control" id="constituency" placeholder="Ward, area, or constituency name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="designation" class="form-label fw-bold">Designation</label>
+                            <input type="text" class="form-control" id="designation" placeholder="MLA, MP, Ward Councilor">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label fw-bold" data-i18n-key="password_label">Password</label>
+                        <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-submit-primary" id="signupBtn">
+                        <i class="bi bi-person-plus-fill me-2"></i><span data-i18n-key="signup_button">Sign Up</span>
+                    </button>
+                </form>
+
+                <div id="verifyNotificationAlert" class="alert alert-info mt-3" style="display: none;">
+                    <strong>Verify Your Email Address!</strong>
+                    <p class="mb-0 small">Registration successful. A verification link has been sent to your email. Please click the link in your inbox to activate your account before logging in.</p>
+                </div>
+
+                <div class="footer-text">
+                    <p class="mb-0"><span data-i18n-key="already_account_text">Already have an account?</span> <a href="login.html" data-i18n-key="login_button">Log In</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        © 2026 Civic Grievance System | Multilingual Civic Redressal Platform
+    </footer>
+
+    <!-- Scripts -->
+    <link rel="stylesheet" href="commons/ai_assistant.css">
+    <script src="commons/API.js"></script>
+    <script src="commons/ui_utils.js"></script>
+    <script src="commons/i18n.js"></script>
+    <script src="commons/ai_assistant.js"></script>
+    <script src="js/signup.js"></script>
+</body>
+
+</html>

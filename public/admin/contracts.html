@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Contract Management - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../commons/ui_utils.css">
+    <link rel="stylesheet" href="../commons/navbar.css">
+</head>
+<body class="bg-light">
+
+    <div id="navbar-placeholder"></div>
+
+    <div class="container mt-4 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text-fill text-danger me-2"></i>Vendor Contract Management</h4>
+                <small class="text-muted">Register and oversee approved government contractor agreements, department SLAs, and coverage areas</small>
+            </div>
+            <div>
+                <button class="btn btn-outline-danger btn-sm me-2" onclick="loadContracts()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                <button class="btn btn-danger btn-sm" onclick="openRegisterContractModal()"><i class="bi bi-plus-circle me-1"></i> Register Contract</button>
+            </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            <button type="button" class="btn btn-outline-danger active" id="deptFilterAll" onclick="filterDepartment('ALL')">All Depts</button>
+                            <button type="button" class="btn btn-outline-danger" id="deptFilterRoad" onclick="filterDepartment('Road Maintenance')">Roads</button>
+                            <button type="button" class="btn btn-outline-danger" id="deptFilterWater" onclick="filterDepartment('Water Supply')">Water</button>
+                            <button type="button" class="btn btn-outline-danger" id="deptFilterElectric" onclick="filterDepartment('Electrical Maintenance')">Electrical</button>
+                            <button type="button" class="btn btn-outline-danger" id="deptFilterSanitation" onclick="filterDepartment('Sanitation and Waste Management')">Sanitation</button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select form-select-sm" id="statusFilter" onchange="applyFilters()">
+                            <option value="ALL">All Statuses (Active, Expired, Suspended, Terminated)</option>
+                            <option value="ACTIVE" selected>Active Contracts Only</option>
+                            <option value="EXPIRED">Expired Contracts</option>
+                            <option value="SUSPENDED">Suspended Contracts</option>
+                            <option value="TERMINATED">Terminated Contracts</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control form-control-sm" id="searchContractInput" placeholder="Search contractor or contract #" onkeyup="applyFilters()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contracts Table -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">Awarded Government Contractor Agreements</h6>
+                <span class="badge bg-danger" id="contractCountBadge">0 Contracts</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Contract #</th>
+                                <th>Vendor / Contractor</th>
+                                <th>Department</th>
+                                <th>Service Area / Wards</th>
+                                <th>SLA Target</th>
+                                <th>Value</th>
+                                <th>Validity</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contractsTableBody">
+                            <tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-danger" role="status"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register/Edit Contract Modal -->
+    <div class="modal fade" id="contractModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="contractModalTitle"><i class="bi bi-file-earmark-plus me-2"></i>Register Government Contractor Agreement</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contractForm">
+                        <input type="hidden" id="editContractId">
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Select Approved Vendor Contractor <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalVendorSelect" required>
+                                    <option value="">-- Choose Contractor --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Department Specialization <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalDepartmentSelect" required>
+                                    <option value="Road Maintenance">Road Maintenance</option>
+                                    <option value="Water Supply">Water Supply</option>
+                                    <option value="Electrical Maintenance">Electrical Maintenance</option>
+                                    <option value="Sanitation and Waste Management">Sanitation and Waste Management</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Contract Agreement Title <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="modalContractTitle" placeholder="e.g. Annual Asphalt Patching & Pothole Rectification Master Agreement" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Contract Number</label>
+                                <input type="text" class="form-control" id="modalContractNumber" placeholder="Leave empty for auto-generated">
+                                <small class="text-muted">e.g. CNT-2026-RD-0005</small>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Contract Value (₹) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="modalContractValue" placeholder="e.g. 2500000" min="0" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Start Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="modalStartDate" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Expiry Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="modalExpiryDate" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Covered Wards / Service Area <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="modalCoveredWards" placeholder="e.g. Ward 12, Ward 13, Ward 14 (or 'All Wards')" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Contract SLA (Hours) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="modalSlaHours" min="1" max="168" value="24" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Status <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalStatusSelect" required>
+                                    <option value="ACTIVE" selected>ACTIVE</option>
+                                    <option value="SUSPENDED">SUSPENDED</option>
+                                    <option value="EXPIRED">EXPIRED</option>
+                                    <option value="TERMINATED">TERMINATED</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Approved Work Categories</label>
+                                <input type="text" class="form-control" id="modalApprovedCategories" placeholder="e.g. Road Damage, Potholes, Asphalt, Paver Blocks">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Contractual Unit Rates</label>
+                                <textarea class="form-control" id="modalContractualRates" rows="2" placeholder="e.g. Bituminous Patching: Rs 550/sq.m; Trench Reinstatement: Rs 750/sq.m"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Work Conditions & Mandatory Safety Protocols</label>
+                                <textarea class="form-control" id="modalWorkConditions" rows="2" placeholder="e.g. Traffic cones mandatory. Night work only on main roads. Dielectric PPE required."></textarea>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Upload Contract Agreement Document (PDF / Image)</label>
+                                <input type="file" class="form-control" id="modalContractDocInput" accept=".pdf,image/*">
+                                <small class="text-muted">Upload scanned government work order or agreement letter</small>
+                                <div id="existingDocNotice" class="small text-success mt-1" style="display:none"></div>
+                            </div>
+                        </div>
+
+                        <div class="text-end mt-4">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger" id="btnSaveContract"><i class="bi bi-save me-1"></i> Save Contract</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Contract Details Modal -->
+    <div class="modal fade" id="viewContractModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Contract Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="viewContractBody">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="../commons/ai_assistant.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../commons/ui_utils.js"></script>
+    <script src="../commons/API.js"></script>
+    <script src="../commons/i18n.js"></script>
+    <script src="../commons/navbar.js"></script>
+    <script src="../commons/ai_assistant.js"></script>
+    <script src="js/contracts.js"></script>
+</body>
+</html>
+

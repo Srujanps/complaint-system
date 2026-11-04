@@ -1,0 +1,60 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: grievance-db
+    environment:
+      POSTGRES_DB: grievance_db
+      POSTGRES_USER: vikas
+      POSTGRES_PASSWORD: "1234"
+    ports:
+      - "5432:5432"
+    networks:
+      - grievance-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vikas -d grievance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: grievance-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/grievance_db
+      SPRING_DATASOURCE_USERNAME: vikas
+      SPRING_DATASOURCE_PASSWORD: "1234"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
+    ports:
+      - "8080:8080"
+    networks:
+      - grievance-network
+    restart: unless-stopped
+
+  # Frontend UI
+  frontend:
+    image: nginx:alpine
+    container_name: grievance-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ../complaint_system_ui:/usr/share/nginx/html:ro
+    networks:
+      - grievance-network
+    depends_on:
+      - backend
+
+networks:
+  grievance-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
