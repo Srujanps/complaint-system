@@ -158,14 +158,14 @@ function processEvidenceFile(file) {
 function processEvidenceImage(source, fileName) {
     const img = new Image();
     img.onload = () => {
-        const dataUrl = compressEvidenceImage(img);
-        setEvidencePayload(dataUrl, fileName);
+        const { dataUrl, visualHint } = compressAndInspectEvidenceImage(img, fileName);
+        setEvidencePayload(dataUrl, fileName, visualHint);
     };
     img.onerror = () => ui.error("Could not read the selected evidence image.");
     img.src = source;
 }
 
-function compressEvidenceImage(img) {
+function compressAndInspectEvidenceImage(img, fileName) {
     const maxSide = 1280;
     let { width, height } = img;
     if (width > maxSide || height > maxSide) {
@@ -177,15 +177,62 @@ function compressEvidenceImage(img) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-    return canvas.toDataURL('image/jpeg', 0.78);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // Pixel color & brightness histogram inspection
+    let visualHint = null;
+    try {
+        const sampleW = Math.min(64, width);
+        const sampleH = Math.min(64, height);
+        const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+        let totalR = 0, totalG = 0, totalB = 0;
+        let brightSpots = 0;
+        const count = imgData.length / 4;
+
+        for (let i = 0; i < imgData.length; i += 4) {
+            const r = imgData[i];
+            const g = imgData[i + 1];
+            const b = imgData[i + 2];
+            totalR += r;
+            totalG += g;
+            totalB += b;
+            if (r + g + b > 650) brightSpots++;
+        }
+
+        const avgR = totalR / count;
+        const avgG = totalG / count;
+        const avgB = totalB / count;
+        const avgLum = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+
+        const lowerName = (fileName || '').toLowerCase();
+        if (lowerName.includes('water') || lowerName.includes('pipe') || lowerName.includes('leak') || lowerName.includes('flood') || (avgB > avgR * 1.15 && avgB > 80)) {
+            visualHint = 'Water Supply';
+        } else if (lowerName.includes('drain') || lowerName.includes('sewage') || lowerName.includes('clog') || (avgG > avgB * 1.1 && avgLum < 110)) {
+            visualHint = 'Drainage';
+        } else if (lowerName.includes('light') || lowerName.includes('lamp') || lowerName.includes('pole') || (avgLum < 65 && brightSpots > 5)) {
+            visualHint = 'Street Lights';
+        } else if (lowerName.includes('garb') || lowerName.includes('waste') || lowerName.includes('trash') || lowerName.includes('dump') || (Math.abs(avgR - avgG) > 25 && avgLum > 110)) {
+            visualHint = 'Garbage';
+        } else {
+            visualHint = 'Road Damage';
+        }
+    } catch (_) {
+        visualHint = 'Road Damage';
+    }
+
+    return {
+        dataUrl: canvas.toDataURL('image/jpeg', 0.78),
+        visualHint: visualHint
+    };
 }
 
-function setEvidencePayload(dataUrl, fileName) {
+function setEvidencePayload(dataUrl, fileName, visualHint = null) {
     evidencePayload = {
         evidenceImageData: dataUrl,
         evidenceFileName: fileName,
-        evidenceContentType: 'image/jpeg'
+        evidenceContentType: 'image/jpeg',
+        visualHint: visualHint
     };
 
     const preview = document.getElementById('evidencePreview');
@@ -244,7 +291,14 @@ function captureCameraPhoto() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    setEvidencePayload(canvas.toDataURL('image/jpeg', 0.78), `camera-evidence-${Date.now()}.jpg`);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+    const fileName = `camera-evidence-${Date.now()}.jpg`;
+    const img = new Image();
+    img.onload = () => {
+        const { dataUrl: compressedUrl, visualHint } = compressAndInspectEvidenceImage(img, fileName);
+        setEvidencePayload(compressedUrl, fileName, visualHint);
+    };
+    img.src = dataUrl;
     closeCamera();
 }
 
@@ -448,21 +502,18 @@ function highlightChip(type) {
     });
 }
 
-function runClientHeuristicTriage(fileName, title, description) {
-    const text = `${fileName || ''} ${title || ''} ${description || ''}`.toLowerCase();
-    if (text.includes('water') || text.includes('pipe') || text.includes('leak') || text.includes('burst') || text.includes('tap') || text.includes('flood')) {
+function runClientHeuristicTriage(fileName, title, description, visualHint) {
+    const text = `${fileName || ''} ${title || ''} ${description || ''} ${visualHint || ''}`.toLowerCase();
+    if (text.includes('water') || text.includes('pipe') || text.includes('leak') || text.includes('burst') || text.includes('tap') || text.includes('flood') || visualHint === 'Water Supply') {
         return PRESET_DATA.water;
     }
-    if (text.includes('road') || text.includes('pothole') || text.includes('tar') || text.includes('asphalt') || text.includes('crater') || text.includes('crack') || text.includes('street')) {
-        return PRESET_DATA.road;
-    }
-    if (text.includes('drain') || text.includes('sewage') || text.includes('gutter') || text.includes('manhole') || text.includes('clog') || text.includes('overflow')) {
+    if (text.includes('drain') || text.includes('sewage') || text.includes('gutter') || text.includes('manhole') || text.includes('clog') || text.includes('overflow') || visualHint === 'Drainage') {
         return PRESET_DATA.drain;
     }
-    if (text.includes('garb') || text.includes('trash') || text.includes('waste') || text.includes('dump') || text.includes('litter') || text.includes('bin')) {
+    if (text.includes('garb') || text.includes('trash') || text.includes('waste') || text.includes('dump') || text.includes('litter') || text.includes('bin') || visualHint === 'Garbage') {
         return PRESET_DATA.garbage;
     }
-    if (text.includes('light') || text.includes('lamp') || text.includes('pole') || text.includes('dark') || text.includes('wire') || text.includes('electr')) {
+    if (text.includes('light') || text.includes('lamp') || text.includes('pole') || text.includes('dark') || text.includes('wire') || text.includes('electr') || visualHint === 'Street Lights') {
         return PRESET_DATA.light;
     }
     // Default to road damage for photo triage
@@ -594,6 +645,9 @@ async function triggerAiAnalysis(isPhotoTrigger = false) {
             payload.evidenceImageData = imageBase64;
             payload.fileName = fileName;
             payload.evidenceFileName = fileName;
+            if (evidencePayload?.visualHint) {
+                payload.visualHint = evidencePayload.visualHint;
+            }
         }
 
         const res = await apiFetch('/ai/analyze-complaint', {
@@ -610,7 +664,7 @@ async function triggerAiAnalysis(isPhotoTrigger = false) {
 
     // If backend did not return data (e.g. offline, network error, timeout), use smart local triage
     if (!aiData || !aiData.suggestedCategoryName) {
-        const fallback = runClientHeuristicTriage(fileName, title, description);
+        const fallback = runClientHeuristicTriage(fileName, title, description, evidencePayload?.visualHint);
         aiData = {
             suggestedCategoryId: fallback.categoryId,
             suggestedCategoryName: fallback.categoryName,

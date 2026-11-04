@@ -159,6 +159,12 @@ class UniversalAIBot {
         const win = document.getElementById('chatbotWindow');
         if (!win) return;
         if (this.isOpen) {
+            const currentRole = (localStorage.getItem('role') || 'CITIZEN').toUpperCase();
+            if (currentRole !== this.role) {
+                this.role = currentRole;
+                this.renderRoleSuggestions();
+                this.applyLanguage();
+            }
             win.classList.add('active');
             document.getElementById('chatbotInput')?.focus();
         } else {
@@ -211,6 +217,7 @@ class UniversalAIBot {
     }
 
     async sendMessage(msg) {
+        this.role = (localStorage.getItem('role') || 'CITIZEN').toUpperCase();
         this.removeTypingIndicator();
         this.appendMessage('', 'bot', true);
 
