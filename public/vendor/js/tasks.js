@@ -351,12 +351,15 @@ async function loadTasks() {
                     actionSection = `
                         <div class="d-flex gap-2 mb-2">
                             <button class="btn btn-sm btn-success w-50 fw-bold" onclick="acceptWorkOrder(${a.assignmentId})">
-                                <i class="bi bi-check-circle-fill me-1"></i> Accept Work Order
+                                <i class="bi bi-check-circle-fill me-1"></i> Accept Complaint
                             </button>
-                            <button class="btn btn-sm btn-outline-danger w-50" onclick="openRejectWorkOrderModal(${a.assignmentId})">
-                                <i class="bi bi-x-circle me-1"></i> Decline
+                            <button class="btn btn-sm btn-outline-danger w-50 fw-bold" onclick="openRejectWorkOrderModal(${a.assignmentId})">
+                                <i class="bi bi-x-circle me-1"></i> Reject Complaint
                             </button>
                         </div>
+                        <button class="btn btn-sm btn-warning text-dark w-100 fw-bold mb-2" onclick="openStatusModal(${a.assignmentId})">
+                            <i class="bi bi-geo-alt-fill me-1"></i> Start Work (Upload Photo & GPS Proof)
+                        </button>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-dark w-50" onclick="openVendorWorkOrderModal(${a.assignmentId})">
                                 <i class="bi bi-file-earmark-ruled me-1"></i> Work Order

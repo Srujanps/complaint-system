@@ -201,7 +201,7 @@ function getInitialDb() {
                 location: 'City Mall Junction, MG Road, Ward 12',
                 latitude: 12.9716,
                 longitude: 77.5946,
-                status: 'IN_PROGRESS',
+                status: 'ASSIGNED',
                 priority: 'HIGH',
                 severityScore: 8,
                 slaTargetHours: 24,
@@ -264,10 +264,9 @@ function getInitialDb() {
                 complaintId: 1,
                 vendorId: 5,
                 assignedById: 2,
-                status: 'IN_PROGRESS',
+                status: 'ASSIGNED',
                 notes: 'High priority asphalt patch squad dispatched to site.',
-                assignedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
-                acceptedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()
+                assignedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
             }
         ],
         contracts: [
@@ -409,6 +408,9 @@ function saveDb() {
 function formatComplaint(c, db) {
     const citizen = db.users.find(u => u.userId === c.citizenId);
     const category = db.categories.find(cat => cat.categoryId === c.categoryId);
+    const assignment = db.assignments ? db.assignments.find(a => a.complaintId === c.complaintId && a.status !== 'REJECTED') : null;
+    const vendor = assignment ? db.users.find(u => u.userId === assignment.vendorId) : null;
+
     return {
         complaintId: c.complaintId,
         complaintRef: c.complaintRef || `GRV-2026-${String(c.complaintId).padStart(6, '0')}`,
@@ -432,6 +434,13 @@ function formatComplaint(c, db) {
         resolvedAt: c.resolvedAt || null,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
+        assignedVendorId: vendor ? vendor.userId : null,
+        assignedVendorName: vendor ? (vendor.fullName || vendor.username) : null,
+        assignedVendorUsername: vendor ? vendor.username : null,
+        assignedVendorPhone: vendor ? vendor.phone : null,
+        assignmentStatus: assignment ? (assignment.status === 'PENDING' ? 'ASSIGNED' : assignment.status) : null,
+        assignmentId: assignment ? assignment.assignmentId : null,
+        workOrderNumber: assignment ? (assignment.workOrderNumber || `WO-2026-${String(assignment.assignmentId).padStart(4, '0')}`) : null,
         citizen: citizen ? {
             userId: citizen.userId,
             username: citizen.username,
@@ -515,7 +524,7 @@ function formatAssignment(a, db) {
             fullName: officer.fullName
         } : null,
         assignedByName: officer ? (officer.fullName || officer.username) : 'Ward Officer',
-        status: a.status,
+        status: a.status === 'PENDING' ? 'ASSIGNED' : a.status,
         notes: a.notes || '',
         completionNotes: a.completionNotes || a.notes || '',
         resolutionNotes: a.resolutionNotes || a.notes || '',
@@ -1369,14 +1378,14 @@ async function handleRequest(req, res) {
                     complaintId: c.complaintId,
                     vendorId: vendor.userId,
                     assignedById: currentUser ? currentUser.userId : 2,
-                    status: 'PENDING',
+                    status: 'ASSIGNED',
                     notes: notes || 'Assigned by Officer',
                     assignedAt: new Date().toISOString()
                 };
                 db.assignments.push(a);
             } else {
                 a.vendorId = vendor.userId;
-                a.status = 'PENDING';
+                a.status = 'ASSIGNED';
                 a.notes = notes || a.notes;
                 a.assignedAt = new Date().toISOString();
             }

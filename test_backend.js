@@ -152,13 +152,23 @@ async function runTests() {
         assert(resAssign.status === 201 && resAssign.body.assignmentId, `POST /api/officer/complaints/assign assigned complaint to vendor`);
         const assignmentId = resAssign.body ? resAssign.body.assignmentId : 1;
 
-        // 9. Vendor Two-Stage Field Execution Workflow
+        // 8b. Verify Officer Complaint view displays assigned contractor info
+        const resOfficerComplaints = await mockCall('GET', '/api/officer/complaints', null, { authorization: `Bearer ${tokens['officer']}` });
+        assert(resOfficerComplaints.status === 200 && Array.isArray(resOfficerComplaints.body.content), 'GET /api/officer/complaints returns list');
+        const assignedComplaintInOfficer = resOfficerComplaints.body.content.find(c => c.complaintId === complaintId);
+        assert(assignedComplaintInOfficer && (assignedComplaintInOfficer.assignedVendorName || assignedComplaintInOfficer.assignedVendorUsername), 'Officer dashboard displays assigned contractor name');
+
+        // 9. Vendor Assignment Lifecycle (Accept / Reject & Two-Stage Field Execution)
         // 9a. Vendor views only their assigned tasks
         const resVendorTasks = await mockCall('GET', '/api/vendor/assignments', null, { authorization: `Bearer ${tokens['vendor']}` });
         assert(resVendorTasks.status === 200 && Array.isArray(resVendorTasks.body), 'GET /api/vendor/assignments returns task list for vendor');
         assert(resVendorTasks.body.every(a => a.vendorId === 5), 'GET /api/vendor/assignments filters strictly to complaints assigned to this vendor');
 
-        // 9b. Stage 1: Start Field Work requires notes, inspection image, and site GPS
+        // 9b. Vendor accepts work order
+        const resAcceptWo = await mockCall('PUT', `/api/vendor/assignments/${assignmentId}/accept`, null, { authorization: `Bearer ${tokens['vendor']}` });
+        assert(resAcceptWo.status === 200 && resAcceptWo.body.status === 'ACCEPTED', 'Vendor accepts assigned work order -> status becomes ACCEPTED');
+
+        // 9c. Stage 1: Start Field Work requires notes, inspection image, and site GPS
         const resStage1Incomplete = await mockCall('PUT', `/api/vendor/assignments/${assignmentId}/status`, {
             status: 'IN_PROGRESS',
             notes: '' // missing notes and photo and GPS
