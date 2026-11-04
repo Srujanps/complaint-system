@@ -598,8 +598,16 @@ async function handleRequest(req, res) {
     }
     if (pathParam && (pathname === '/api/index.js' || pathname === '/api' || pathname === '/api/index' || pathname === '/api/')) {
         const clean = pathParam.split('?')[0].replace(/^\/+/, '');
-        pathname = `/api/${clean}`;
+        if (!clean || clean === 'index.js' || clean === 'index') {
+            pathname = '/api';
+        } else {
+            pathname = `/api/${clean}`;
+        }
     } else if (pathname === '/api/index.js' || pathname === '/api/index') {
+        pathname = '/api';
+    }
+
+    if (pathname === '/api/index.js' || pathname === '/api/index') {
         pathname = '/api';
     }
 
