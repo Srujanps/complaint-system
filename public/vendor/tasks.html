@@ -144,15 +144,15 @@
                         <div class="mb-3 p-3 bg-light rounded border border-warning" id="startPhotoSection" style="display: none;">
                             <div class="d-flex align-items-center mb-1">
                                 <i class="bi bi-geo-alt-fill text-warning fs-5 me-2"></i>
-                                <span class="fw-bold text-dark">Step 1: On-Site Arrival Proof <span class="text-danger">*</span></span>
+                                <span class="fw-bold text-dark">Stage 1: Start Field Work (Site Inspection Image) <span class="text-danger">*</span></span>
                             </div>
-                            <small class="text-muted d-block mb-2">Upload a live photo of your crew, tools, or arrival at the site to commence work.</small>
+                            <small class="text-muted d-block mb-2">Upload a live site inspection photo of your crew, tools, or arrival at the site using Choose File.</small>
                             <input type="file" class="form-control" id="startPhotoInput" accept="image/*" capture="environment">
                             <div id="startPhotoPreview" class="mt-2" style="display:none;">
                                 <img src="" id="startPhotoImg" class="img-fluid rounded border" style="max-height:140px;object-fit:cover;">
                             </div>
                             <div class="mt-2 d-flex align-items-center justify-content-between">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFetchGps" onclick="fetchCurrentGps()">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFetchGps" onclick="fetchCurrentGps('start')">
                                     <i class="bi bi-pin-map-fill text-danger me-1"></i> Capture Site GPS
                                 </button>
                                 <span id="gpsStatusBadge" class="badge bg-secondary">GPS Not Tagged</span>
@@ -163,14 +163,20 @@
                         <div class="mb-3 p-3 bg-light rounded border border-success" id="completionPhotoSection" style="display: none;">
                             <div class="d-flex align-items-center mb-1">
                                 <i class="bi bi-patch-check-fill text-success fs-5 me-2"></i>
-                                <span class="fw-bold text-dark">Step 2: After-Repair Completion Proof <span class="text-danger">*</span></span>
+                                <span class="fw-bold text-dark">Stage 2: Complete Repair Work (Repair Completion Proof) <span class="text-danger">*</span></span>
                             </div>
-                            <small class="text-muted d-block mb-2">Upload a <strong>new, distinct photo</strong> of the finished physical repair. <em>(Must not be the same as arrival or citizen photo)</em>.</small>
+                            <small class="text-muted d-block mb-2">Upload the repair completion proof image using Choose File and capture completion GPS.</small>
                             <input type="file" class="form-control" id="completionPhotoInput" accept="image/*" capture="environment">
                             <div id="completionPhotoPreview" class="mt-2" style="display:none;">
                                 <img src="" id="completionPhotoImg" class="img-fluid rounded border" style="max-height:140px;object-fit:cover;">
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-info mt-2 w-100" id="btnVerifyAiResolution" onclick="verifyCompletionPhotoWithAi()">
+                            <div class="mt-2 d-flex align-items-center justify-content-between mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFetchCompletionGps" onclick="fetchCurrentGps('completion')">
+                                    <i class="bi bi-pin-map-fill text-danger me-1"></i> Capture Completion GPS
+                                </button>
+                                <span id="completionGpsStatusBadge" class="badge bg-secondary">GPS Not Tagged</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-info w-100" id="btnVerifyAiResolution" onclick="verifyCompletionPhotoWithAi()">
                                 <i class="bi bi-robot me-1"></i> Run AI Vision Repair QA Check
                             </button>
                             <div id="aiResolutionFeedback" class="alert alert-info py-2 small mt-2 mb-0" style="display:none"></div>

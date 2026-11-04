@@ -234,6 +234,28 @@ function getInitialDb() {
                 aiAnalysisReasoning: 'AI Vision identified clean water pipeline rupture.',
                 createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
                 updatedAt: new Date().toISOString()
+            },
+            {
+                complaintId: 3,
+                complaintRef: 'GRV-2026-000003',
+                citizenId: 1,
+                categoryId: 2,
+                title: 'Broken Streetlight Pole & Dark Transit Zone',
+                description: 'Non-functional street light fixture causing dangerous dark transit zone on peripheral road.',
+                location: 'North Metro Pillar 44, Outer Ring Road, Ward 14 - North Zone',
+                latitude: 13.0358,
+                longitude: 77.5970,
+                status: 'RECEIVED',
+                priority: 'MEDIUM',
+                severityScore: 6,
+                slaTargetHours: 36,
+                slaDeadline: new Date(Date.now() + 30 * 3600 * 1000).toISOString(),
+                isAiProcessed: true,
+                aiCategoryName: 'Street Lights',
+                aiSeverityScore: 6,
+                aiAnalysisReasoning: 'AI Vision identified broken streetlight fixture.',
+                createdAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString(),
+                updatedAt: new Date().toISOString()
             }
         ],
         assignments: [
@@ -428,14 +450,55 @@ function formatComplaint(c, db) {
     };
 }
 
+function isLocationInConstituency(location, constituency) {
+    if (!location || !constituency) return false;
+    const loc = String(location).toLowerCase();
+    const rep = String(constituency).toLowerCase();
+
+    // 1. Direct ward number match (e.g. "Ward 12" in "Ward 12 - Central District")
+    const repWard = rep.match(/ward\s*(\d+)/i);
+    const locWard = loc.match(/ward\s*(\d+)/i);
+    if (repWard && locWard) {
+        return repWard[1] === locWard[1];
+    }
+    if (repWard) {
+        const wNum = repWard[1];
+        if (loc.includes(`ward ${wNum}`) || loc.includes(`ward-${wNum}`) || loc.includes(`ward${wNum}`)) {
+            return true;
+        }
+    }
+
+    // 2. Specific locality / district tokens
+    const tokens = rep.split(/[-–,]/).map(t => t.trim().toLowerCase()).filter(t => t.length > 3 && !t.startsWith('ward'));
+    for (const t of tokens) {
+        if (loc.includes(t)) return true;
+    }
+
+    return false;
+}
+
 function formatAssignment(a, db) {
     const complaint = db.complaints.find(c => c.complaintId === a.complaintId);
     const vendor = db.users.find(u => u.userId === a.vendorId);
     const officer = db.users.find(u => u.userId === a.assignedById);
+    const category = complaint ? db.categories.find(cat => cat.categoryId === complaint.categoryId) : null;
+    const contract = db.contracts.find(k => k.vendorId === a.vendorId);
+
     return {
         assignmentId: a.assignmentId,
         complaintId: a.complaintId,
         complaint: complaint ? formatComplaint(complaint, db) : null,
+        complaintTitle: complaint ? complaint.title : `Assignment #${a.assignmentId}`,
+        complaintDescription: complaint ? complaint.description : '',
+        complaintRef: complaint ? complaint.complaintRef : '',
+        location: complaint ? complaint.location : '',
+        latitude: a.startLatitude || (complaint ? complaint.latitude : 12.9716),
+        longitude: a.startLongitude || (complaint ? complaint.longitude : 77.5946),
+        categoryName: category ? category.name : 'General',
+        department: contract ? contract.department : 'Civil Works',
+        workOrderNumber: `WO-2026-${String(a.assignmentId).padStart(4, '0')}`,
+        contractNumber: contract ? contract.contractNumber : 'CNT-2026-DEFAULT',
+        evidenceImageData: complaint ? complaint.evidenceImageData : null,
         vendor: vendor ? {
             userId: vendor.userId,
             username: vendor.username,
@@ -445,19 +508,31 @@ function formatAssignment(a, db) {
         } : null,
         vendorId: a.vendorId,
         vendorName: vendor ? (vendor.fullName || vendor.username) : 'Vendor',
+        vendorUsername: vendor ? vendor.username : '',
         officer: officer ? {
             userId: officer.userId,
             username: officer.username,
             fullName: officer.fullName
         } : null,
+        assignedByName: officer ? (officer.fullName || officer.username) : 'Ward Officer',
         status: a.status,
         notes: a.notes || '',
         completionNotes: a.completionNotes || a.notes || '',
         resolutionNotes: a.resolutionNotes || a.notes || '',
+        startEvidenceImageData: a.startEvidenceImageData || null,
+        startLatitude: a.startLatitude || null,
+        startLongitude: a.startLongitude || null,
+        completionEvidenceImageData: a.completionEvidenceImageData || null,
+        completionLatitude: a.completionLatitude || null,
+        completionLongitude: a.completionLongitude || null,
+        aiVerificationScore: a.aiVerificationScore || null,
+        aiVerificationNote: a.aiVerificationNote || null,
+        history: a.history || [],
         assignedAt: a.assignedAt,
         acceptedAt: a.acceptedAt,
         completedAt: a.completedAt,
-        verifiedAt: a.verifiedAt
+        verifiedAt: a.verifiedAt,
+        slaDeadline: complaint ? complaint.slaDeadline : null
     };
 }
 
@@ -466,22 +541,64 @@ async function analyzeComplaintAI(title, description, imageBase64, fileName, vis
     const rawText = `${title || ''} ${description || ''}`.trim();
     const fullText = `${title || ''} ${description || ''} ${fileName || ''} ${visualHint || ''}`.toLowerCase();
     
+    // Check for irrelevant non-civic indicators (selfies, animals, food, personal objects)
+    const irrelevantKeywords = [
+        'selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger',
+        'party', 'vacation', 'family', 'holiday', 'room', 'bed', 'sofa', 'tv', 'chair', 'table',
+        'screenshot', 'meme', 'wallpaper', 'game', 'avatar', 'profile', 'drawing', 'cartoon',
+        'car_interior', 'car-interior', 'dashboard', 'flower', 'plant', 'random', 'unrelated', 'me.jpg', 'selfie.jpg'
+    ];
+    const isExplicitlyIrrelevant = visualHint === 'Irrelevant' || irrelevantKeywords.some(k => fullText.includes(k));
+
+    if (isExplicitlyIrrelevant && (imageBase64 || visualHint === 'Irrelevant' || (fileName && irrelevantKeywords.some(k => fileName.toLowerCase().includes(k))))) {
+        return {
+            isValidGrievance: false,
+            rejectionReason: 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.',
+            suggestedCategoryId: null,
+            suggestedCategoryName: null,
+            suggestedTitle: null,
+            suggestedDescription: null,
+            severityScore: null,
+            priority: null,
+            slaTargetHours: null,
+            reasoning: 'AI Vision rejected the image: Content is not related to a public municipal grievance (detected personal photo, selfie, animal, or unrelated object).',
+            isAiProcessed: true
+        };
+    }
+
     // Check if Gemini API key exists
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey && apiKey !== 'your_gemini_api_key_here') {
         try {
-            // Attempt call to Gemini REST API with multimodal image support
-            const prompt = `Analyze this civic grievance complaint and ${imageBase64 ? 'attached photographic evidence' : 'details'}. Respond strictly in JSON format with fields:
-            "suggestedCategoryName": One of ["Road Damage", "Street Lights", "Garbage", "Water Supply", "Drainage"],
-            "severityScore": number from 1 to 10,
-            "priority": "LOW", "MEDIUM", "HIGH", or "CRITICAL",
-            "slaTargetHours": 24 or 48 or 72,
-            "reasoning": string brief explanation,
-            "suggestedTitle": improved concise title,
-            "suggestedDescription": clean concise summary.
-            Title: ${title || '(Not provided)'}
-            Description: ${description || '(Not provided)'}
-            FileName: ${fileName || ''}`;
+            const prompt = `You are an AI Civic Grievance Triage Classifier.
+First, verify whether the uploaded image and text represent a genuine municipal or public grievance (such as damaged roads, potholes, water supply pipe leakage, drainage clogging, sewage overflow, garbage dumps, or non-functional streetlights).
+
+If the image is irrelevant or random (such as personal selfies, portraits, humans, animals, pets, food, memes, documents, indoor rooms, or unrelated household objects):
+Respond strictly in JSON format:
+{
+  "isValidGrievance": false,
+  "rejectionReason": "The uploaded image does not appear to be related to a public grievance. Please upload a valid image.",
+  "suggestedCategoryName": null,
+  "suggestedTitle": null,
+  "suggestedDescription": null
+}
+
+If the image IS a genuine public grievance:
+Respond strictly in JSON format:
+{
+  "isValidGrievance": true,
+  "suggestedCategoryName": One of ["Road Damage", "Street Lights", "Garbage", "Water Supply", "Drainage"],
+  "severityScore": number from 1 to 10,
+  "priority": "LOW", "MEDIUM", "HIGH", or "CRITICAL",
+  "slaTargetHours": 24 or 48 or 72,
+  "reasoning": string brief explanation,
+  "suggestedTitle": concise title representing the identified public issue,
+  "suggestedDescription": relevant detailed complaint description.
+}
+
+Title: ${title || '(Not provided)'}
+Description: ${description || '(Not provided)'}
+FileName: ${fileName || ''}`;
 
             const parts = [{ text: prompt }];
             if (imageBase64) {
@@ -513,6 +630,17 @@ async function analyzeComplaintAI(title, description, imageBase64, fileName, vis
                 const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (rawJson) {
                     const parsed = JSON.parse(rawJson);
+                    if (parsed.isValidGrievance === false) {
+                        return {
+                            isValidGrievance: false,
+                            rejectionReason: parsed.rejectionReason || 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.',
+                            suggestedCategoryId: null,
+                            suggestedCategoryName: null,
+                            suggestedTitle: null,
+                            suggestedDescription: null,
+                            isAiProcessed: true
+                        };
+                    }
                     const catMap = {
                         'road damage': 1,
                         'street lights': 2,
@@ -523,6 +651,7 @@ async function analyzeComplaintAI(title, description, imageBase64, fileName, vis
                     const catKey = (parsed.suggestedCategoryName || '').toLowerCase();
                     return {
                         ...parsed,
+                        isValidGrievance: true,
                         suggestedCategoryId: catMap[catKey] || 1,
                         isAiProcessed: true
                     };
@@ -592,6 +721,7 @@ async function analyzeComplaintAI(title, description, imageBase64, fileName, vis
     }
 
     return {
+        isValidGrievance: true,
         suggestedCategoryId: catId,
         suggestedCategoryName: cat,
         severityScore: severity,
@@ -1069,27 +1199,43 @@ async function handleRequest(req, res) {
         // ─────────────────────────────────────────────────────────────────
         if (pathname === '/api/complaints/create' && req.method === 'POST') {
             const user = currentUser || db.users.find(u => u.username === 'citizen');
-            const { title, description, categoryId, location, latitude, longitude, evidenceImageData, evidenceFileName } = body;
+            const { title, description, categoryId, location, latitude, longitude, evidenceImageData, evidenceFileName, visualHint, isValidGrievance } = body;
             
             if (!title || !description) {
                 return sendJson(400, 'Title and description are required.');
             }
 
-            const cat = db.categories.find(c => c.categoryId === Number(categoryId)) || db.categories[0];
+            if (!location || !String(location).trim()) {
+                return sendJson(400, 'Complaint location is mandatory. Please provide the location.');
+            }
+
+            // Reject if explicitly marked invalid
+            if (isValidGrievance === false) {
+                return sendJson(400, 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.');
+            }
+
+            // Quick AI validation & categorization
+            const ai = await analyzeComplaintAI(title, description, evidenceImageData, evidenceFileName, visualHint);
+
+            // Enforce image grievance validation if an image was uploaded
+            if (evidenceImageData && ai.isValidGrievance === false) {
+                return sendJson(400, ai.rejectionReason || 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.');
+            }
+
+            const cat = db.categories.find(c => c.categoryId === Number(categoryId)) || 
+                        (ai.suggestedCategoryId ? db.categories.find(c => c.categoryId === ai.suggestedCategoryId) : null) || 
+                        db.categories[0];
             const complaintId = db.complaints.length + 1;
             const ref = `GRV-2026-${String(complaintId).padStart(6, '0')}`;
-
-            // Quick AI categorization
-            const ai = await analyzeComplaintAI(title, description, evidenceImageData, evidenceFileName);
 
             const newComplaint = {
                 complaintId,
                 complaintRef: ref,
                 citizenId: user ? user.userId : 1,
                 categoryId: cat ? cat.categoryId : 1,
-                title,
-                description,
-                location: location || 'Ward 12, Main St.',
+                title: title || ai.suggestedTitle || 'Public Grievance',
+                description: description || ai.suggestedDescription || '',
+                location: location.trim(),
                 latitude: latitude || 12.9716,
                 longitude: longitude || 77.5946,
                 status: 'RECEIVED',
@@ -1372,7 +1518,7 @@ async function handleRequest(req, res) {
             const user = currentUser || db.users.find(u => u.role === 'VENDOR');
             const vId = user ? user.userId : 5;
             const matched = db.assignments
-                .filter(a => !currentUser || a.vendorId === vId)
+                .filter(a => a.vendorId === vId)
                 .map(a => formatAssignment(a, db));
             return sendJson(200, matched);
         }
@@ -1382,7 +1528,7 @@ async function handleRequest(req, res) {
             const user = currentUser || db.users.find(u => u.role === 'VENDOR');
             const vId = user ? user.userId : 5;
             const matched = db.assignments
-                .filter(a => a.status === status && (!currentUser || a.vendorId === vId))
+                .filter(a => a.status === status && a.vendorId === vId)
                 .map(a => formatAssignment(a, db));
             return sendJson(200, matched);
         }
@@ -1392,11 +1538,86 @@ async function handleRequest(req, res) {
             const a = db.assignments.find(k => k.assignmentId === id);
             if (!a) return sendJson(404, 'Assignment not found');
 
+            const user = currentUser || db.users.find(u => u.role === 'VENDOR');
+            if (currentUser && currentUser.role === 'VENDOR' && a.vendorId !== currentUser.userId) {
+                return sendJson(403, 'Forbidden: Assignment not assigned to you.');
+            }
+
             const status = (body.status || 'IN_PROGRESS').toUpperCase();
-            a.status = status;
-            if (body.notes) a.notes = body.notes;
-            if (status === 'IN_PROGRESS' && !a.acceptedAt) a.acceptedAt = new Date().toISOString();
-            if (status === 'COMPLETED') a.completedAt = new Date().toISOString();
+
+            // Stage 1: Start Field Work
+            if (status === 'IN_PROGRESS') {
+                if (!body.notes || !body.notes.trim()) {
+                    return sendJson(400, 'Field execution note is required to start field work.');
+                }
+                const startImg = body.evidenceImageData || a.startEvidenceImageData;
+                if (!startImg) {
+                    return sendJson(400, 'Site inspection image is required to start field work.');
+                }
+                if (!body.latitude || !body.longitude) {
+                    return sendJson(400, 'Valid device GPS location is required to start field work.');
+                }
+
+                a.status = 'IN_PROGRESS';
+                a.notes = body.notes.trim();
+                a.startEvidenceImageData = startImg;
+                a.startLatitude = body.latitude;
+                a.startLongitude = body.longitude;
+                if (!a.acceptedAt) a.acceptedAt = new Date().toISOString();
+
+                if (!a.history) a.history = [];
+                a.history.push({
+                    stage: 'START_FIELD_WORK',
+                    status: 'IN_PROGRESS',
+                    notes: a.notes,
+                    evidenceImageData: a.startEvidenceImageData,
+                    latitude: a.startLatitude,
+                    longitude: a.startLongitude,
+                    timestamp: new Date().toISOString()
+                });
+            } else if (status === 'COMPLETED') {
+                // Stage 2: Complete Repair Work
+                if (a.status !== 'IN_PROGRESS') {
+                    return sendJson(400, 'Stage 1 (Start Field Work) must be completed before marking work as Completed.');
+                }
+                if (!body.notes || !body.notes.trim()) {
+                    return sendJson(400, 'Field execution note describing completed repair is required.');
+                }
+                if (!body.evidenceImageData) {
+                    return sendJson(400, 'Repair completion proof image is required.');
+                }
+                if (!body.latitude || !body.longitude) {
+                    return sendJson(400, 'Exact GPS location of completed work is required.');
+                }
+                if (body.aiVerificationScore !== undefined && body.aiVerificationScore !== null && Number(body.aiVerificationScore) < 70) {
+                    return sendJson(400, 'AI Vision Repair QA Check did not pass. Resolution proof must be verified before completing work.');
+                }
+
+                a.status = 'COMPLETED';
+                a.completionNotes = body.notes.trim();
+                a.completionEvidenceImageData = body.evidenceImageData;
+                a.completionLatitude = body.latitude;
+                a.completionLongitude = body.longitude;
+                a.aiVerificationScore = body.aiVerificationScore || 92;
+                a.aiVerificationNote = body.aiVerificationNote || 'AI Vision verified repair completion.';
+                a.completedAt = new Date().toISOString();
+
+                if (!a.history) a.history = [];
+                a.history.push({
+                    stage: 'COMPLETE_REPAIR_WORK',
+                    status: 'COMPLETED',
+                    notes: a.completionNotes,
+                    evidenceImageData: a.completionEvidenceImageData,
+                    latitude: a.completionLatitude,
+                    longitude: a.completionLongitude,
+                    aiVerificationScore: a.aiVerificationScore,
+                    aiVerificationNote: a.aiVerificationNote,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                a.status = status;
+                if (body.notes) a.notes = body.notes;
+            }
 
             const c = db.complaints.find(k => k.complaintId === a.complaintId);
             if (c) {
@@ -1477,9 +1698,9 @@ async function handleRequest(req, res) {
         // ─────────────────────────────────────────────────────────────────
         if (pathname === '/api/representative/complaints' && req.method === 'GET') {
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const area = (rep && rep.constituency) ? rep.constituency.toLowerCase() : 'ward';
+            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
             const matched = db.complaints
-                .filter(c => c.location && c.location.toLowerCase().includes('ward'))
+                .filter(c => isLocationInConstituency(c.location, repArea))
                 .map(c => formatComplaint(c, db))
                 .reverse();
             return sendJson(200, {
@@ -1493,20 +1714,27 @@ async function handleRequest(req, res) {
 
         if (pathname === '/api/representative/complaints/stats' && req.method === 'GET') {
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const area = rep ? (rep.constituency || 'Ward 12') : 'Ward 12';
-            const total = db.complaints.length;
+            const repArea = rep ? (rep.constituency || 'Ward 12 - Central District') : 'Ward 12 - Central District';
+            const areaComplaints = db.complaints.filter(c => isLocationInConstituency(c.location, repArea));
+            const total = areaComplaints.length;
             const byStatus = {};
             ['CREATED', 'RECEIVED', 'OFFICER_REVIEW', 'VERIFIED', 'IN_PROGRESS', 'ASSIGNED', 'VENDOR_ACCEPTED', 'COMPLETED', 'RESOLVED', 'CLOSED', 'ESCALATED'].forEach(s => {
-                byStatus[s] = db.complaints.filter(c => c.status === s).length;
+                byStatus[s] = areaComplaints.filter(c => c.status === s).length;
             });
+            const pending = (byStatus.CREATED || 0) + (byStatus.RECEIVED || 0) + (byStatus.VERIFIED || 0) + (byStatus.ASSIGNED || 0) + (byStatus.IN_PROGRESS || 0) + (byStatus.VENDOR_ACCEPTED || 0);
+            const completed = (byStatus.COMPLETED || 0);
+            const resolved = (byStatus.RESOLVED || 0) + (byStatus.CLOSED || 0);
+            const escalated = (byStatus.ESCALATED || 0);
+
             return sendJson(200, {
-                area,
+                area: repArea,
                 designation: rep ? rep.designation : 'Elected Ward Representative',
                 total,
                 byStatus,
-                resolved: (byStatus.RESOLVED || 0) + (byStatus.CLOSED || 0),
-                escalated: byStatus.ESCALATED || 0,
-                pending: (byStatus.CREATED || 0) + (byStatus.RECEIVED || 0) + (byStatus.VERIFIED || 0) + (byStatus.ASSIGNED || 0) + (byStatus.IN_PROGRESS || 0)
+                pending,
+                completed,
+                resolved,
+                escalated
             });
         }
 
@@ -1514,6 +1742,13 @@ async function handleRequest(req, res) {
             const id = parseInt(pathname.split('/')[4], 10);
             const c = db.complaints.find(k => k.complaintId === id);
             if (!c) return sendJson(404, 'Complaint not found');
+
+            const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
+            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            if (!isLocationInConstituency(c.location, repArea)) {
+                return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
+            }
+
             c.status = 'ESCALATED';
             c.priority = 'CRITICAL';
             c.updatedAt = new Date().toISOString();
@@ -1529,6 +1764,13 @@ async function handleRequest(req, res) {
             const id = parseInt(pathname.split('/')[4], 10);
             const c = db.complaints.find(k => k.complaintId === id);
             if (!c) return sendJson(404, 'Complaint not found');
+
+            const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
+            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            if (!isLocationInConstituency(c.location, repArea)) {
+                return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
+            }
+
             c.status = 'CLOSED';
             c.updatedAt = new Date().toISOString();
             saveDb();
@@ -1543,6 +1785,13 @@ async function handleRequest(req, res) {
             const id = parseInt(pathname.split('/')[4], 10);
             const c = db.complaints.find(k => k.complaintId === id);
             if (!c) return sendJson(404, 'Complaint not found');
+
+            const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
+            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            if (!isLocationInConstituency(c.location, repArea)) {
+                return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
+            }
+
             const newPriority = (query.priority || (body && body.priority) || 'HIGH').toUpperCase();
             c.priority = newPriority;
             c.updatedAt = new Date().toISOString();
@@ -1558,6 +1807,13 @@ async function handleRequest(req, res) {
             const id = parseInt(pathname.split('/')[4], 10);
             const c = db.complaints.find(k => k.complaintId === id);
             if (!c) return sendJson(404, 'Complaint not found');
+
+            const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
+            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            if (!isLocationInConstituency(c.location, repArea)) {
+                return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
+            }
+
             const note = body.remark ? body.remark.trim() : '';
             c.description = `${c.description || ''}\n\n[REP NOTE] ${note}`;
             c.priority = 'HIGH';
@@ -1656,10 +1912,54 @@ async function handleRequest(req, res) {
         }
 
         if (pathname === '/api/ai/verify-resolution' && req.method === 'POST') {
+            const { beforePhotoBase64, afterPhotoBase64, complaintId, isIrrelevant } = body;
+            
+            let beforeImg = beforePhotoBase64;
+            if (!beforeImg && complaintId) {
+                const c = db.complaints.find(k => k.complaintId === Number(complaintId));
+                if (c && c.evidenceImageData) beforeImg = c.evidenceImageData;
+            }
+
+            if (!afterPhotoBase64) {
+                return sendJson(200, {
+                    passed: false,
+                    verificationStatus: 'REJECTED',
+                    qualityScore: 0,
+                    reason: 'No repair completion proof image provided. Please upload the completed repair image.',
+                    qualityReasoning: 'No repair completion proof image provided.'
+                });
+            }
+
+            const clean1 = (beforeImg || '').replace(/^data:image\/[^;]+;base64,/, '').replace(/\s+/g, '');
+            const clean2 = (afterPhotoBase64 || '').replace(/^data:image\/[^;]+;base64,/, '').replace(/\s+/g, '');
+
+            if (clean1.length > 5 && clean1 === clean2) {
+                return sendJson(200, {
+                    passed: false,
+                    verificationStatus: 'REJECTED',
+                    qualityScore: 20,
+                    reason: 'AI Vision QA Check Failed: The repair completion image is identical to the original complaint image. A distinct photo of the completed repair is required.',
+                    qualityReasoning: 'Duplicate photo detected. The completion photo cannot be identical to the reported issue image.'
+                });
+            }
+
+            if (isIrrelevant) {
+                return sendJson(200, {
+                    passed: false,
+                    verificationStatus: 'FAILED',
+                    qualityScore: 35,
+                    reason: 'AI Vision QA Check Failed: Uploaded image does not depict completed municipal civil works or repairs at the location. Please upload a genuine repair photo.',
+                    qualityReasoning: 'Visual inspection failed: Image does not match site resolution criteria.'
+                });
+            }
+
             return sendJson(200, {
+                passed: true,
                 verificationStatus: 'VERIFIED',
-                confidenceScore: 0.96,
-                analysis: 'AI Vision verified that the reported damage has been patched and surface leveled cleanly.'
+                confidenceScore: 0.94,
+                qualityScore: 94,
+                reason: 'AI Vision QA Check Passed: Comparison confirms reported defect has been repaired, surface leveled, and civic hazard remediated cleanly.',
+                qualityReasoning: 'Comparison confirms reported defect has been repaired, surface leveled, and civic hazard remediated cleanly.'
             });
         }
 

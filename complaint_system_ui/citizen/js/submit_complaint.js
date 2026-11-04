@@ -180,7 +180,7 @@ function compressAndInspectEvidenceImage(img, fileName) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, width, height);
 
-    // Pixel color & brightness histogram inspection
+    // Pixel color, brightness histogram & skin-tone inspection
     let visualHint = null;
     try {
         const sampleW = Math.min(64, width);
@@ -188,6 +188,7 @@ function compressAndInspectEvidenceImage(img, fileName) {
         const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
         let totalR = 0, totalG = 0, totalB = 0;
         let brightSpots = 0;
+        let skinPixels = 0;
         const count = imgData.length / 4;
 
         for (let i = 0; i < imgData.length; i += 4) {
@@ -198,15 +199,25 @@ function compressAndInspectEvidenceImage(img, fileName) {
             totalG += g;
             totalB += b;
             if (r + g + b > 650) brightSpots++;
+            // Skin tone color boundary detection in RGB (for selfies & portraits)
+            if (r > 95 && g > 40 && b > 20 && (r - g) > 15 && r > b && (Math.max(r, g, b) - Math.min(r, g, b)) > 15) {
+                skinPixels++;
+            }
         }
 
         const avgR = totalR / count;
         const avgG = totalG / count;
         const avgB = totalB / count;
         const avgLum = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+        const skinRatio = skinPixels / count;
 
         const lowerName = (fileName || '').toLowerCase();
-        if (lowerName.includes('water') || lowerName.includes('pipe') || lowerName.includes('leak') || lowerName.includes('flood') || (avgB > avgR * 1.15 && avgB > 80)) {
+        const irrelevantWords = ['selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger', 'party', 'vacation', 'family', 'holiday', 'me.jpg', 'avatar', 'profile', 'drawing', 'cartoon', 'random', 'unrelated'];
+        const isIrrelevantName = irrelevantWords.some(w => lowerName.includes(w));
+
+        if (isIrrelevantName || skinRatio > 0.35) {
+            visualHint = 'Irrelevant';
+        } else if (lowerName.includes('water') || lowerName.includes('pipe') || lowerName.includes('leak') || lowerName.includes('flood') || (avgB > avgR * 1.15 && avgB > 80)) {
             visualHint = 'Water Supply';
         } else if (lowerName.includes('drain') || lowerName.includes('sewage') || lowerName.includes('clog') || (avgG > avgB * 1.1 && avgLum < 110)) {
             visualHint = 'Drainage';
@@ -504,20 +515,35 @@ function highlightChip(type) {
 
 function runClientHeuristicTriage(fileName, title, description, visualHint) {
     const text = `${fileName || ''} ${title || ''} ${description || ''} ${visualHint || ''}`.toLowerCase();
+    const irrelevantWords = ['selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger', 'party', 'vacation', 'family', 'holiday', 'me.jpg', 'avatar', 'profile', 'drawing', 'cartoon', 'random', 'unrelated'];
+    if (visualHint === 'Irrelevant' || irrelevantWords.some(w => text.includes(w))) {
+        return {
+            isValidGrievance: false,
+            rejectionReason: 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.',
+            categoryId: null,
+            categoryName: null,
+            title: '',
+            description: '',
+            severity: 0,
+            priority: 'LOW',
+            slaHours: 0,
+            reasoning: 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.'
+        };
+    }
     if (text.includes('water') || text.includes('pipe') || text.includes('leak') || text.includes('burst') || text.includes('tap') || text.includes('flood') || visualHint === 'Water Supply') {
-        return PRESET_DATA.water;
+        return { isValidGrievance: true, ...PRESET_DATA.water };
     }
     if (text.includes('drain') || text.includes('sewage') || text.includes('gutter') || text.includes('manhole') || text.includes('clog') || text.includes('overflow') || visualHint === 'Drainage') {
-        return PRESET_DATA.drain;
+        return { isValidGrievance: true, ...PRESET_DATA.drain };
     }
     if (text.includes('garb') || text.includes('trash') || text.includes('waste') || text.includes('dump') || text.includes('litter') || text.includes('bin') || visualHint === 'Garbage') {
-        return PRESET_DATA.garbage;
+        return { isValidGrievance: true, ...PRESET_DATA.garbage };
     }
     if (text.includes('light') || text.includes('lamp') || text.includes('pole') || text.includes('dark') || text.includes('wire') || text.includes('electr') || visualHint === 'Street Lights') {
-        return PRESET_DATA.light;
+        return { isValidGrievance: true, ...PRESET_DATA.light };
     }
     // Default to road damage for photo triage
-    return PRESET_DATA.road;
+    return { isValidGrievance: true, ...PRESET_DATA.road };
 }
 
 window.applyAiQuickPreset = function(type) {
@@ -663,9 +689,11 @@ async function triggerAiAnalysis(isPhotoTrigger = false) {
     }
 
     // If backend did not return data (e.g. offline, network error, timeout), use smart local triage
-    if (!aiData || !aiData.suggestedCategoryName) {
+    if (!aiData || (!aiData.suggestedCategoryName && aiData.isValidGrievance !== false)) {
         const fallback = runClientHeuristicTriage(fileName, title, description, evidencePayload?.visualHint);
         aiData = {
+            isValidGrievance: fallback.isValidGrievance,
+            rejectionReason: fallback.rejectionReason,
             suggestedCategoryId: fallback.categoryId,
             suggestedCategoryName: fallback.categoryName,
             suggestedTitle: fallback.title,
@@ -676,6 +704,45 @@ async function triggerAiAnalysis(isPhotoTrigger = false) {
             reasoning: fallback.reasoning
         };
     }
+
+    const rejectionAlert = document.getElementById('imageRejectionAlert');
+    const rejectionMsg = document.getElementById('imageRejectionMsg');
+
+    // ── AI Grievance Image Validation Gate ──
+    if (aiData && aiData.isValidGrievance === false) {
+        window.isImageGrievanceValid = false;
+        if (evidencePayload) evidencePayload.isValidGrievance = false;
+
+        if (previewBox) previewBox.style.display = 'none';
+        if (rejectionAlert) {
+            rejectionAlert.style.display = 'block';
+            if (rejectionMsg) rejectionMsg.textContent = aiData.rejectionReason || 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.';
+        }
+
+        const badge = document.getElementById('evidenceAiBadge');
+        if (badge) {
+            badge.style.display = 'block';
+            badge.innerHTML = `
+                <div class="d-flex align-items-center text-danger">
+                    <i class="bi bi-x-circle-fill me-2 fs-5"></i>
+                    <div>
+                        <strong class="d-block">Grievance Image Rejected</strong>
+                        <span class="small">${aiData.rejectionReason || 'The uploaded image does not appear to be related to a public grievance. Please upload a valid image.'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (typeof ui !== 'undefined' && ui.error) {
+            ui.error(aiData.rejectionReason || "The uploaded image does not appear to be related to a public grievance. Please upload a valid image.");
+        }
+        return;
+    }
+
+    // Valid grievance image!
+    window.isImageGrievanceValid = true;
+    if (evidencePayload) evidencePayload.isValidGrievance = true;
+    if (rejectionAlert) rejectionAlert.style.display = 'none';
 
     // Apply AI triage results
     renderAiTriagePreview(aiData);
@@ -732,7 +799,16 @@ async function submitComplaint(e) {
     const detectedText = document.getElementById('detectedAddressText').textContent.replace('📍 ', '').trim();
     let location = manualLoc || detectedText || '';
     if (detail) location = location ? `${location} — ${detail}` : detail;
-    if (!location) { ui.error("Please detect or enter your location."); return; }
+    if (!location) { 
+        ui.error("Please provide the complaint location."); 
+        document.getElementById('manualLocation')?.focus();
+        return; 
+    }
+
+    if (evidencePayload && window.isImageGrievanceValid === false) {
+        ui.error("The uploaded image does not appear to be related to a public grievance. Please upload a valid image before submitting.");
+        return;
+    }
 
     const body = { title, description, location };
     if (categoryId) body.categoryId = categoryId;
