@@ -67,7 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
 
                 } else {
-                    ui.error("Login failed. Please check your credentials.");
+                    let errMsg = 'Login failed. Please check your credentials.';
+                    try {
+                        const errJson = await response.json();
+                        if (errJson && errJson.message) errMsg = errJson.message;
+                    } catch (e) {}
+                    ui.error(errMsg);
                     loginBtn.disabled = false;
                 }
 

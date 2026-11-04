@@ -75,15 +75,54 @@ async function runTests() {
 
         // 3. Register a new user
         const newUsername = 'testuser_' + Date.now();
+        const testPhone = '9876543299';
         const resReg = await mockCall('POST', '/api/auth/register', {
             username: newUsername,
             password: 'password123',
             email: `${newUsername}@example.com`,
             role: 'CITIZEN',
             fullName: 'Test Citizen User',
-            phone: '1234567890'
+            phone: testPhone
         });
         assert(resReg.status === 201 && resReg.body.token, `POST /api/auth/register registers new user "${newUsername}"`);
+
+        // 3a. Duplicate registration prevention (cannot be used again)
+        // Same username rejected
+        const resDupUsername = await mockCall('POST', '/api/auth/register', {
+            username: newUsername,
+            password: 'password123',
+            email: `another_${Date.now()}@example.com`,
+            phone: '9111122222'
+        });
+        assert(resDupUsername.status === 400 && resDupUsername.body.message.includes('Username is already taken'), 'Duplicate registration with same username rejected');
+
+        // Same email rejected
+        const resDupEmail = await mockCall('POST', '/api/auth/register', {
+            username: `diffuser_${Date.now()}`,
+            password: 'password123',
+            email: `${newUsername}@example.com`,
+            phone: '9222233333'
+        });
+        assert(resDupEmail.status === 400 && resDupEmail.body.message.includes('Email'), 'Duplicate registration with same email rejected');
+
+        // Same mobile number rejected
+        const resDupPhone = await mockCall('POST', '/api/auth/register', {
+            username: `diffphone_${Date.now()}`,
+            password: 'password123',
+            email: `diffemail_${Date.now()}@example.com`,
+            phone: testPhone
+        });
+        assert(resDupPhone.status === 400 && resDupPhone.body.message.includes('Mobile number is already registered'), 'Duplicate registration with same phone number rejected');
+
+        // 3b. Cross-device login with Username, Email, OR Mobile Number
+        const resLoginByUsername = await mockCall('POST', '/api/auth/login', { username: newUsername, password: 'password123' });
+        assert(resLoginByUsername.status === 200 && resLoginByUsername.body.token, 'Login with username succeeds across devices');
+
+        const resLoginByEmail = await mockCall('POST', '/api/auth/login', { username: `${newUsername}@example.com`, password: 'password123' });
+        assert(resLoginByEmail.status === 200 && resLoginByEmail.body.token, 'Login with email succeeds across devices');
+
+        const resLoginByPhone = await mockCall('POST', '/api/auth/login', { username: testPhone, password: 'password123' });
+        assert(resLoginByPhone.status === 200 && resLoginByPhone.body.token, 'Login with mobile number succeeds across devices');
 
         // 4. Admin Categories
         const resCats = await mockCall('GET', '/api/admin/categories', null, { authorization: `Bearer ${tokens['admin']}` });

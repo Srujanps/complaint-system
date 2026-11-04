@@ -73,7 +73,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => window.location.href = 'login.html', 3500);
                 } else {
                     const errText = await response.text();
-                    ui.error(`Registration failed: ${errText || 'Unknown error'}`);
+                    let errMsg = errText;
+                    try {
+                        const parsed = JSON.parse(errText);
+                        if (parsed && parsed.message) errMsg = parsed.message;
+                    } catch (e) {}
+                    ui.error(`Registration failed: ${errMsg || 'Unknown error'}`);
                     signupBtn.disabled = false;
                 }
 

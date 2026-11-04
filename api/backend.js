@@ -56,7 +56,14 @@ function verifyJwt(token) {
 }
 
 // ── In-Memory / File Persistent Database ─────────────────────────────────
-const DB_FILE = process.env.VERCEL ? '/tmp/grievance_db.json' : path.join(__dirname, '..', 'data', 'grievance_db.json');
+const LOCAL_DB_FILE = path.join(__dirname, '..', 'data', 'grievance_db.json');
+const DB_FILE = process.env.VERCEL ? '/tmp/grievance_db.json' : LOCAL_DB_FILE;
+
+function normalizePhone(p) {
+    if (!p) return '';
+    const digits = String(p).replace(/\D/g, '');
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+}
 
 function ensureDataDir() {
     const dir = path.dirname(DB_FILE);
@@ -387,8 +394,18 @@ function loadDb() {
             return db;
         }
     } catch (e) {
-        console.warn('Could not read DB file, initializing in-memory store:', e.message);
+        console.warn('Could not read DB file:', e.message);
     }
+    // In serverless, if /tmp has no DB yet, seed from packaged repo data file if available
+    try {
+        if (fs.existsSync(LOCAL_DB_FILE)) {
+            const data = fs.readFileSync(LOCAL_DB_FILE, 'utf8');
+            db = JSON.parse(data);
+            saveDb();
+            return db;
+        }
+    } catch (e) {}
+
     db = getInitialDb();
     saveDb();
     return db;
@@ -872,20 +889,33 @@ async function handleRequest(req, res) {
             if (!username || !password || !email) {
                 return sendJson(400, { message: 'Username, password and email are required.' });
             }
-            if (db.users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-                return sendJson(400, { message: 'Username is already taken.' });
+            const cleanUser = username.trim();
+            const cleanEmail = email.trim();
+            const normPhone = normalizePhone(phone);
+
+            // 1. Username uniqueness check (cannot be used again)
+            if (db.users.some(u => u.username.toLowerCase() === cleanUser.toLowerCase())) {
+                return sendJson(400, { message: 'Username is already taken. Please choose another username.' });
             }
-            if (db.users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-                return sendJson(400, { message: 'Email is already registered.' });
+            // 2. Email uniqueness check (cannot be used again)
+            if (db.users.some(u => u.email.toLowerCase() === cleanEmail.toLowerCase())) {
+                return sendJson(400, { message: 'Email address is already registered. Please login or use a different email.' });
+            }
+            // 3. Mobile phone number uniqueness check (cannot be used again)
+            if (normPhone) {
+                const phoneExists = db.users.some(u => normalizePhone(u.phone) === normPhone);
+                if (phoneExists) {
+                    return sendJson(400, { message: 'Mobile number is already registered with an existing account. Please log in or use a different number.' });
+                }
             }
 
             const newUser = {
                 userId: db.users.length + 1,
-                username,
+                username: cleanUser,
                 password, // for demo / production matching
-                email,
+                email: cleanEmail,
                 role: (role || 'CITIZEN').toUpperCase(),
-                fullName: fullName || username,
+                fullName: fullName || cleanUser,
                 phone: phone || '',
                 constituency: constituency || '',
                 designation: designation || '',
@@ -902,7 +932,7 @@ async function handleRequest(req, res) {
                 roles: [`ROLE_${newUser.role}`, newUser.role],
                 authorities: [`ROLE_${newUser.role}`],
                 userId: newUser.userId,
-                exp: Math.floor(Date.now() / 1000) + 86400 * 7
+                exp: Math.floor(Date.now() / 1000) + 86400 * 30
             });
 
             return sendJson(201, {
@@ -917,12 +947,22 @@ async function handleRequest(req, res) {
 
         if (pathname === '/api/auth/login' && req.method === 'POST') {
             const { username, password } = body;
-            const user = db.users.find(
-                u => (u.username.toLowerCase() === (username || '').toLowerCase() || u.email.toLowerCase() === (username || '').toLowerCase())
-            );
+            const inputIdentifier = (username || '').trim();
+            const normInputPhone = normalizePhone(inputIdentifier);
+
+            const user = db.users.find(u => {
+                const uUser = (u.username || '').toLowerCase();
+                const uMail = (u.email || '').toLowerCase();
+                const uPhone = normalizePhone(u.phone);
+
+                if (uUser === inputIdentifier.toLowerCase()) return true;
+                if (uMail === inputIdentifier.toLowerCase()) return true;
+                if (normInputPhone && uPhone && uPhone === normInputPhone) return true;
+                return false;
+            });
 
             if (!user || user.password !== password) {
-                return sendJson(400, { message: 'Invalid credentials. Please verify your username and password.' });
+                return sendJson(400, { message: 'Invalid credentials. Please verify your username/email/mobile and password.' });
             }
 
             const token = signJwt({
@@ -931,7 +971,7 @@ async function handleRequest(req, res) {
                 roles: [`ROLE_${user.role}`, user.role],
                 authorities: [`ROLE_${user.role}`],
                 userId: user.userId,
-                exp: Math.floor(Date.now() / 1000) + 86400 * 7
+                exp: Math.floor(Date.now() / 1000) + 86400 * 30 // 30-day session for multi-device support
             });
 
             return sendJson(200, {
