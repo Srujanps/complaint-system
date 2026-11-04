@@ -1,125 +1,844 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Complaint Management System</title>
+    <title>AI-Driven Public Grievance Management System | Government Civic Portal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <style>
-        :root {
-            --primary-orange: #FF6F00;
-            --dark-black: #121212;
-            --off-white: #f8f9fa;
-        }
-
-        body {
-            background-color: var(--off-white);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Inter', sans-serif;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .landing-card {
-            background-color: white;
-            padding: 3rem;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 100%;
-        }
-
-        .logo-img {
-            max-width: 180px;
-            margin-bottom: 2rem;
-        }
-
-        h1 {
-            color: var(--dark-black);
-            font-weight: 700;
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        p {
-            color: #6c757d;
-            margin-bottom: 2rem;
-        }
-
-        .btn-custom {
-            border-radius: 8px;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-bottom: 1rem;
-        }
-
-        .btn-primary-custom {
-            background-color: var(--primary-orange);
-            color: white;
-            border: none;
-        }
-
-        .btn-primary-custom:hover {
-            background-color: #E65100;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(255, 111, 0, 0.3);
-        }
-
-        .btn-outline-custom {
-            border: 2px solid var(--primary-orange);
-            color: var(--primary-orange);
-            background-color: transparent;
-        }
-
-        .btn-outline-custom:hover {
-            background-color: var(--primary-orange);
-            color: white;
-            transform: translateY(-2px);
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="commons/ui_utils.css">
     <link rel="stylesheet" href="commons/ai_assistant.css">
-</head>
 
+    <style>
+        :root {
+            --gov-navy: #0c2340;
+            --gov-navy-dark: #07172b;
+            --gov-blue: #0284c7;
+            --gov-light-blue: #e0f2fe;
+            --gov-orange: #ff6f00;
+            --gov-orange-hover: #e65100;
+            --gov-bg: #f4f7fb;
+            --gov-card-border: rgba(12, 35, 64, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--gov-bg);
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Top Government Header */
+        .gov-header {
+            background: linear-gradient(135deg, var(--gov-navy-dark) 0%, var(--gov-navy) 100%);
+            color: #ffffff;
+            padding: 0.85rem 1.5rem;
+            border-bottom: 3px solid var(--gov-orange);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .gov-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            color: #ffffff;
+        }
+
+        .gov-logo {
+            height: 48px;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .gov-title-wrap h1 {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.2px;
+            color: #ffffff;
+            line-height: 1.25;
+        }
+
+        .gov-tagline {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #ffb74d;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .dept-login-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.4rem 0.9rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .dept-login-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            border-color: #ffffff;
+        }
+
+        .lang-select-box {
+            background: #ffffff;
+            border-radius: 6px;
+            padding: 2px 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .lang-select-box select {
+            border: none;
+            outline: none;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--gov-navy);
+            background: transparent;
+            cursor: pointer;
+        }
+
+        /* Hero Grievance Section */
+        .hero-section {
+            background: linear-gradient(180deg, #ffffff 0%, var(--gov-bg) 100%);
+            padding: 3rem 1.5rem 2.5rem 1.5rem;
+            border-bottom: 1px solid var(--gov-card-border);
+        }
+
+        .hero-banner-card {
+            background: #ffffff;
+            border: 1px solid rgba(2, 132, 199, 0.2);
+            border-left: 6px solid var(--gov-orange);
+            border-radius: 12px;
+            padding: 2.25rem 2rem;
+            box-shadow: 0 10px 25px rgba(12, 35, 64, 0.06);
+        }
+
+        .gov-service-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--gov-light-blue);
+            color: #0369a1;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 1rem;
+        }
+
+        .hero-title {
+            color: var(--gov-navy);
+            font-size: 2.1rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-subtitle {
+            color: #475569;
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .hero-desc {
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 1.75rem;
+            max-width: 680px;
+        }
+
+        .btn-file-grievance {
+            background: linear-gradient(135deg, var(--gov-orange) 0%, #ff8f00 100%);
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 1.05rem;
+            padding: 0.85rem 2rem;
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 4px 14px rgba(255, 111, 0, 0.35);
+            transition: all 0.25s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .btn-file-grievance:hover {
+            background: linear-gradient(135deg, var(--gov-orange-hover) 0%, var(--gov-orange) 100%);
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(255, 111, 0, 0.45);
+        }
+
+        .btn-citizen-register {
+            background: #ffffff;
+            color: var(--gov-navy);
+            border: 2px solid var(--gov-navy);
+            font-weight: 700;
+            font-size: 1.05rem;
+            padding: 0.8rem 1.6rem;
+            border-radius: 8px;
+            transition: all 0.25s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .btn-citizen-register:hover {
+            background: var(--gov-navy);
+            color: #ffffff;
+            transform: translateY(-2px);
+        }
+
+        /* Tracking Card in Hero */
+        .track-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1.5rem;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .track-box h5 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gov-navy);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Live Statistics Cards */
+        .stats-section {
+            padding: 2.5rem 1.5rem;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            color: var(--gov-navy);
+            font-weight: 800;
+            font-size: 1.6rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .section-subtitle {
+            color: #64748b;
+            font-size: 0.92rem;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 1.4rem 1.2rem;
+            border: 1px solid var(--gov-card-border);
+            box-shadow: 0 4px 12px rgba(12, 35, 64, 0.04);
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(12, 35, 64, 0.08);
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-number {
+            font-size: 1.9rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 0.35rem;
+        }
+
+        .stat-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Civic Services Grid */
+        .services-section {
+            background: #ffffff;
+            padding: 3rem 1.5rem;
+            border-top: 1px solid var(--gov-card-border);
+            border-bottom: 1px solid var(--gov-card-border);
+        }
+
+        .service-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1.5rem 1.25rem;
+            transition: all 0.2s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .service-card:hover {
+            border-color: var(--gov-orange);
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(255, 111, 0, 0.12);
+            transform: translateY(-3px);
+            color: inherit;
+        }
+
+        .service-icon-wrap {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .service-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: var(--gov-navy);
+            margin-bottom: 0.4rem;
+        }
+
+        .service-desc {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        .service-link {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--gov-orange);
+            margin-top: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 4 Steps Section */
+        .steps-section {
+            padding: 3rem 1.5rem;
+        }
+
+        .step-box {
+            background: #ffffff;
+            border: 1px solid var(--gov-card-border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            height: 100%;
+            position: relative;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            background: var(--gov-navy);
+            color: #ffffff;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .step-title {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--gov-navy);
+            margin-bottom: 0.5rem;
+        }
+
+        .step-desc {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        /* Helpline Banner */
+        .helpline-banner {
+            background: linear-gradient(135deg, var(--gov-navy) 0%, #1e3a5f 100%);
+            color: #ffffff;
+            padding: 2.25rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 3rem;
+            box-shadow: 0 10px 30px rgba(12, 35, 64, 0.15);
+        }
+
+        /* Government Footer */
+        .gov-footer {
+            background: var(--gov-navy-dark);
+            color: #94a3b8;
+            padding: 2rem 1.5rem 1.5rem 1.5rem;
+            font-size: 0.85rem;
+            margin-top: auto;
+            border-top: 3px solid var(--gov-orange);
+        }
+
+        .gov-footer a {
+            color: #cbd5e1;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .gov-footer a:hover {
+            color: var(--gov-orange);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .gov-header {
+                padding: 0.75rem 1rem;
+            }
+            .gov-title-wrap h1 {
+                font-size: 0.95rem;
+            }
+            .hero-title {
+                font-size: 1.6rem;
+            }
+            .hero-banner-card {
+                padding: 1.5rem 1.25rem;
+            }
+        }
+    </style>
+</head>
 <body>
-    <div class="position-absolute top-0 end-0 p-3">
-        <div class="d-flex align-items-center gap-1 bg-white px-2 py-1 rounded border shadow-sm">
-            <i class="bi bi-translate text-primary fs-6"></i>
-            <select id="indexLangSelect" class="form-select form-select-sm border-0 bg-transparent fw-semibold i18n-lang-select" onchange="window.i18n ? window.i18n.setLanguage(this.value) : localStorage.setItem('preferred_language', this.value);" aria-label="Select Language">
-                <option value="en">English</option>
-                <option value="kn">ಕನ್ನಡ</option>
-                <option value="hi">हिंदी</option>
-                <option value="te">తెలుగు</option>
-                <option value="ta">தமிழ்</option>
-            </select>
+
+    <!-- 1. Government Header Bar -->
+    <header class="gov-header">
+        <div class="container-xl d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <a href="index.html" class="gov-brand">
+                <img src="assets/logo.png" alt="Emblem Logo" class="gov-logo">
+                <div class="gov-title-wrap">
+                    <h1 data-i18n-key="home_portal_title">AI-Driven Public Grievance Management System</h1>
+                    <div class="gov-tagline" data-i18n-key="home_tagline">YOUR VOICE, OUR DUTY</div>
+                </div>
+            </a>
+
+            <div class="d-flex align-items-center gap-3">
+                <!-- Language Selector Dropdown -->
+                <div class="lang-select-box">
+                    <i class="bi bi-translate text-primary"></i>
+                    <select id="indexLangSelect" class="i18n-lang-select" aria-label="Select Language">
+                        <option value="en">English</option>
+                        <option value="kn">ಕನ್ನಡ</option>
+                        <option value="hi">हिंदी</option>
+                        <option value="te">తెలుగు</option>
+                        <option value="ta">தமிழ்</option>
+                    </select>
+                </div>
+
+                <!-- Discreet Department Login Button -->
+                <a href="login.html" class="dept-login-btn" data-i18n-key="home_dept_login">
+                    <i class="bi bi-shield-lock me-1"></i> Department Login
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. Hero Section: "File a Grievance Here" -->
+    <section class="hero-section">
+        <div class="container-xl">
+            <div class="row g-4 align-items-stretch">
+                <!-- Main Action Card -->
+                <div class="col-lg-8">
+                    <div class="hero-banner-card h-100">
+                        <div class="gov-service-badge" data-i18n-key="home_hero_badge">
+                            <i class="bi bi-building-check"></i> Civic Grievance Services
+                        </div>
+                        <h2 class="hero-title" data-i18n-key="home_hero_title">File a Grievance Here</h2>
+                        <h4 class="hero-subtitle text-primary" data-i18n-key="home_hero_subtitle">Related to Municipal & Government Departments</h4>
+                        <p class="hero-desc" data-i18n-key="home_hero_desc">
+                            Register civic complaints directly to municipal authorities. Powered by automated AI classification, instant location verification, and strict SLA timelines monitored for prompt on-ground action.
+                        </p>
+                        <div class="d-flex flex-wrap gap-3">
+                            <a href="login.html" class="btn-file-grievance" data-i18n-key="home_file_btn">
+                                <i class="bi bi-pencil-square me-2"></i> File a Grievance
+                            </a>
+                            <a href="signup.html" class="btn-citizen-register" data-i18n-key="home_register_btn">
+                                <i class="bi bi-person-plus me-2"></i> Citizen Registration
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Tracking Box -->
+                <div class="col-lg-4">
+                    <div class="track-box shadow-sm">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-search text-primary fs-4"></i>
+                            <h5 class="mb-0 fw-bold" data-i18n-key="home_track_title">Track Your Grievance</h5>
+                        </div>
+                        <p class="text-muted small mb-3">Check live status, contractor updates, and completion photos.</p>
+                        <div class="mb-3">
+                            <label for="trackRefInput" class="form-label small fw-semibold text-secondary">Grievance Reference Number</label>
+                            <input type="text" id="trackRefInput" class="form-control" placeholder="e.g. GRV-2026-000001" data-i18n-placeholder="home_track_placeholder">
+                        </div>
+                        <button type="button" class="btn btn-primary w-100 fw-bold" onclick="handleTrackComplaint()" data-i18n-key="home_track_btn">
+                            <i class="bi bi-crosshair me-1"></i> Track Status
+                        </button>
+                        <div id="trackResultBox" class="mt-3 p-2 bg-white rounded border small" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Live Statistics Section (Backend Data from /api/public/stats) -->
+    <section class="stats-section">
+        <div class="container-xl">
+            <div class="section-header">
+                <h3 class="section-title" data-i18n-key="home_stats_title">Live Grievance Redressal Statistics</h3>
+                <p class="section-subtitle">Real-time metrics from the municipal grievance resolution network</p>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-primary-subtle text-primary">
+                            <i class="bi bi-folder2-open"></i>
+                        </div>
+                        <div class="stat-number text-primary" id="statTotal">--</div>
+                        <div class="stat-label" data-i18n-key="home_stat_total">Total Registered</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-warning-subtle text-warning">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                        <div class="stat-number text-warning" id="statPending">--</div>
+                        <div class="stat-label" data-i18n-key="home_stat_pending">Pending Review</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-info-subtle text-info">
+                            <i class="bi bi-tools"></i>
+                        </div>
+                        <div class="stat-number text-info" id="statOngoing">--</div>
+                        <div class="stat-label" data-i18n-key="home_stat_ongoing">In Progress</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-success-subtle text-success">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                        <div class="stat-number text-success" id="statResolved">--</div>
+                        <div class="stat-label" data-i18n-key="home_stat_resolved">Resolved</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Civic Services Grid -->
+    <section class="services-section">
+        <div class="container-xl">
+            <div class="section-header">
+                <h3 class="section-title" data-i18n-key="home_services_title">Civic Service Categories</h3>
+                <p class="section-subtitle" data-i18n-key="home_services_subtitle">Select a category to report local civic issues to the appropriate municipal department</p>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-4 col-sm-6">
+                    <a href="login.html" class="service-card">
+                        <div class="service-icon-wrap text-dark">🛣️</div>
+                        <div class="service-title" data-i18n-key="home_cat_road">Roads & Footpaths</div>
+                        <div class="service-desc" data-i18n-key="home_cat_road_desc">Potholes, surface damage, cratered streets, broken pavements</div>
+                        <div class="service-link"><span data-i18n-key="home_file_btn">File a Grievance</span> <i class="bi bi-arrow-right"></i></div>
+                    </a>
+                </div>
+                <div class="col-md-4 col-sm-6">
+                    <a href="login.html" class="service-card">
+                        <div class="service-icon-wrap text-primary">🚰</div>
+                        <div class="service-title" data-i18n-key="home_cat_water">Water Supply</div>
+                        <div class="service-desc" data-i18n-key="home_cat_water_desc">Pipeline bursts, drinking water contamination, low pressure, supply disruption</div>
+                        <div class="service-link"><span data-i18n-key="home_file_btn">File a Grievance</span> <i class="bi bi-arrow-right"></i></div>
+                    </a>
+                </div>
+                <div class="col-md-4 col-sm-6">
+                    <a href="login.html" class="service-card">
+                        <div class="service-icon-wrap text-info">🌊</div>
+                        <div class="service-title" data-i18n-key="home_cat_drain">Drainage & Sewerage</div>
+                        <div class="service-desc" data-i18n-key="home_cat_drain_desc">Open drain overflow, clogged gutters, manhole blockages, water stagnation</div>
+                        <div class="service-link"><span data-i18n-key="home_file_btn">File a Grievance</span> <i class="bi bi-arrow-right"></i></div>
+                    </a>
+                </div>
+                <div class="col-md-6 col-sm-6">
+                    <a href="login.html" class="service-card">
+                        <div class="service-icon-wrap text-success">🗑️</div>
+                        <div class="service-title" data-i18n-key="home_cat_garbage">Solid Waste & Sanitation</div>
+                        <div class="service-desc" data-i18n-key="home_cat_garbage_desc">Uncollected garbage heaps, public littering, black spots, sweep requests</div>
+                        <div class="service-link"><span data-i18n-key="home_file_btn">File a Grievance</span> <i class="bi bi-arrow-right"></i></div>
+                    </a>
+                </div>
+                <div class="col-md-6 col-sm-12">
+                    <a href="login.html" class="service-card">
+                        <div class="service-icon-wrap text-warning">💡</div>
+                        <div class="service-title" data-i18n-key="home_cat_light">Street Lighting</div>
+                        <div class="service-desc" data-i18n-key="home_cat_light_desc">Defective luminaires, dark spots, damaged electrical poles, open cables</div>
+                        <div class="service-link"><span data-i18n-key="home_file_btn">File a Grievance</span> <i class="bi bi-arrow-right"></i></div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. How It Works (4 Simple Steps) -->
+    <section class="steps-section">
+        <div class="container-xl">
+            <div class="section-header">
+                <h3 class="section-title" data-i18n-key="home_how_title">How It Works</h3>
+                <p class="section-subtitle" data-i18n-key="home_how_subtitle">Four simple steps from complaint filing to verified civic resolution</p>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-3 col-6">
+                    <div class="step-box">
+                        <div class="step-number">1</div>
+                        <div class="step-title" data-i18n-key="home_step1_title">1. Report Issue</div>
+                        <p class="step-desc" data-i18n-key="home_step1_desc">Upload grievance photograph with automatic GPS location tagging.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="step-box">
+                        <div class="step-number">2</div>
+                        <div class="step-title" data-i18n-key="home_step2_title">2. AI Smart Triage</div>
+                        <p class="step-desc" data-i18n-key="home_step2_desc">AI categorizes the complaint and assigns SLA to the local ward officer.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="step-box">
+                        <div class="step-number">3</div>
+                        <div class="step-title" data-i18n-key="home_step3_title">3. Contractor Execution</div>
+                        <p class="step-desc" data-i18n-key="home_step3_desc">Empaneled vendors perform repairs and upload before-and-after proof.</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="step-box">
+                        <div class="step-number">4</div>
+                        <div class="step-title" data-i18n-key="home_step4_title">4. Citizen Verification</div>
+                        <p class="step-desc" data-i18n-key="home_step4_desc">Ward officer conducts QA and citizen confirms resolution with feedback.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. 24x7 Citizen Helpline Banner -->
+    <div class="container-xl">
+        <div class="helpline-banner">
+            <div class="row align-items-center g-3">
+                <div class="col-lg-8">
+                    <h4 class="fw-bold mb-1" data-i18n-key="home_helpline_title">24x7 Citizen Helpline & Support</h4>
+                    <p class="text-white-50 small mb-0" data-i18n-key="home_helpline_sub">Available round-the-clock for civic grievance assistance across all municipal wards.</p>
+                    <div class="d-flex flex-wrap gap-4 mt-2 small">
+                        <span><i class="bi bi-telephone-fill text-warning me-1"></i> <strong data-i18n-key="home_helpline_tollfree">Toll-Free: 1902 / 1800-425-0000</strong></span>
+                        <span><i class="bi bi-envelope-fill text-warning me-1"></i> <strong data-i18n-key="home_helpline_email">grievances@karnataka.gov.in</strong></span>
+                    </div>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <a href="login.html" class="btn btn-warning fw-bold text-dark px-4 py-2">
+                        <i class="bi bi-headset me-1"></i> Contact Helpdesk
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="landing-card">
-        <img src="assets/logo.png" alt="Complaint System Logo" class="logo-img">
-        <h1 data-i18n-key="nav_welcome">Welcome</h1>
-        <p data-i18n-key="login_subtitle">A smart, streamlined platform for submitting, tracking, and resolving civic complaints effectively.</p>
-        <a href="login.html" class="btn btn-custom btn-primary-custom" data-i18n-key="login_button">Log In</a>
-        <a href="signup.html" class="btn btn-custom btn-outline-custom" data-i18n-key="sign_up_link">Create an Account</a>
-    </div>
+    <!-- 7. Professional Footer -->
+    <footer class="gov-footer">
+        <div class="container-xl">
+            <div class="row g-4 mb-4">
+                <div class="col-md-5">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <img src="assets/logo.png" alt="Logo" style="height: 32px;">
+                        <span class="text-white fw-bold">Civic Grievance Redressal Portal</span>
+                    </div>
+                    <p class="small text-secondary mb-0">
+                        An AI-integrated citizen grievance management initiative designed to accelerate municipal problem resolution, empower ward officers, and maintain transparency.
+                    </p>
+                </div>
+                <div class="col-md-3 col-6">
+                    <h6 class="text-white fw-bold mb-2">Quick Access</h6>
+                    <ul class="list-unstyled small mb-0 d-flex flex-column gap-1">
+                        <li><a href="login.html">Citizen Login</a></li>
+                        <li><a href="signup.html">New Citizen Registration</a></li>
+                        <li><a href="login.html">Department Login</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4 col-6">
+                    <h6 class="text-white fw-bold mb-2">Municipal Portals</h6>
+                    <ul class="list-unstyled small mb-0 d-flex flex-column gap-1">
+                        <li><a href="login.html">Officer Portal</a></li>
+                        <li><a href="login.html">Contractor Work Orders</a></li>
+                        <li><a href="login.html">Elected Representative View</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="pt-3 border-top border-secondary border-opacity-25 d-flex justify-content-between align-items-center flex-wrap gap-2 text-secondary small">
+                <span>© 2026 AI-Driven Public Grievance Management System. All Rights Reserved.</span>
+                <span class="text-warning fw-semibold font-monospace" data-i18n-key="home_tagline">YOUR VOICE, OUR DUTY</span>
+            </div>
+        </div>
+    </footer>
 
+    <!-- Scripts -->
     <script src="commons/API.js"></script>
     <script src="commons/ui_utils.js"></script>
     <script src="commons/i18n.js"></script>
     <script src="commons/ai_assistant.js"></script>
-</body>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Language selector setup
+            const langSelect = document.getElementById('indexLangSelect');
+            const savedLang = localStorage.getItem('preferred_language') || 'en';
+            if (langSelect) {
+                langSelect.value = savedLang;
+                langSelect.addEventListener('change', (e) => {
+                    const newLang = e.target.value;
+                    if (window.i18n && window.i18n.setLanguage) {
+                        window.i18n.setLanguage(newLang);
+                    } else {
+                        localStorage.setItem('preferred_language', newLang);
+                    }
+                });
+            }
+
+            if (window.i18n && window.i18n.setLanguage) {
+                window.i18n.setLanguage(savedLang);
+            }
+
+            // 2. Fetch Live Statistics from existing public endpoint
+            loadPublicStats();
+        });
+
+        async function loadPublicStats() {
+            try {
+                const res = await apiFetch('/public/stats', { method: 'GET' });
+                if (res && res.ok) {
+                    const data = await res.json();
+                    const total = data.totalComplaints || 0;
+                    const resolved = data.resolvedComplaints || 0;
+                    const ongoing = data.ongoingComplaints || 0;
+                    const pending = data.pendingComplaints || 0;
+
+                    const totalEl = document.getElementById('statTotal');
+                    if (totalEl) totalEl.textContent = total;
+
+                    const resolvedEl = document.getElementById('statResolved');
+                    if (resolvedEl) resolvedEl.textContent = resolved;
+
+                    const ongoingEl = document.getElementById('statOngoing');
+                    if (ongoingEl) ongoingEl.textContent = ongoing;
+
+                    const pendingEl = document.getElementById('statPending');
+                    if (pendingEl) pendingEl.textContent = pending;
+                }
+            } catch (err) {
+                console.warn('Could not load public stats:', err);
+            }
+        }
+
+        async function handleTrackComplaint() {
+            const input = document.getElementById('trackRefInput');
+            const resultBox = document.getElementById('trackResultBox');
+            if (!input || !resultBox) return;
+
+            const q = input.value.trim().toUpperCase();
+            if (!q) {
+                resultBox.style.display = 'block';
+                resultBox.className = 'mt-3 p-2 bg-warning-subtle text-dark rounded border small';
+                resultBox.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> Please enter a complaint reference number.';
+                return;
+            }
+
+            resultBox.style.display = 'block';
+            resultBox.className = 'mt-3 p-2 bg-light text-dark rounded border small';
+            resultBox.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Searching complaint records...';
+
+            try {
+                const res = await apiFetch('/public/issues', { method: 'GET' });
+                if (res && res.ok) {
+                    const issues = await res.json();
+                    const match = issues.find(c => 
+                        (c.complaintRef && c.complaintRef.toUpperCase() === q) || 
+                        String(c.complaintId) === q ||
+                        (c.complaintRef && c.complaintRef.toUpperCase().includes(q))
+                    );
+
+                    if (match) {
+                        let badgeBg = match.status === 'RESOLVED' || match.status === 'CLOSED' ? 'bg-success' : (match.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-primary');
+                        resultBox.className = 'mt-3 p-3 bg-white rounded border border-primary shadow-sm small text-dark';
+                        resultBox.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <strong class="text-primary font-monospace">${match.complaintRef || ('#' + match.complaintId)}</strong>
+                                <span class="badge ${badgeBg}">${match.status}</span>
+                            </div>
+                            <div class="fw-bold mb-1">${match.title}</div>
+                            <div class="text-muted small mb-2"><i class="bi bi-tag me-1"></i>${match.categoryName} &nbsp;|&nbsp; 📍 ${match.location || 'Ward'}</div>
+                            <a href="login.html" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-box-arrow-in-right me-1"></i> Login to View Full Timeline</a>
+                        `;
+                    } else {
+                        resultBox.className = 'mt-3 p-3 bg-white rounded border border-secondary small text-dark';
+                        resultBox.innerHTML = `
+                            <div class="text-danger fw-bold mb-1"><i class="bi bi-info-circle me-1"></i> Complaint ${q} Not Found in Recent Issues</div>
+                            <div class="text-muted small mb-2">For older or private grievance files, please log in to your citizen account.</div>
+                            <a href="login.html" class="btn btn-sm btn-primary w-100">Log In to View My Complaints</a>
+                        `;
+                    }
+                } else {
+                    resultBox.className = 'mt-3 p-2 bg-light text-dark rounded border small';
+                    resultBox.innerHTML = `<a href="login.html" class="text-primary fw-semibold">Login to citizen dashboard to track all your complaints.</a>`;
+                }
+            } catch (e) {
+                resultBox.className = 'mt-3 p-2 bg-light text-dark rounded border small';
+                resultBox.innerHTML = `<a href="login.html" class="text-primary fw-semibold">Login to citizen dashboard to track all your complaints.</a>`;
+            }
+        }
+    </script>
+</body>
 </html>
