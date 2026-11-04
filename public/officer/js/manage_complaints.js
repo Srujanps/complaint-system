@@ -122,17 +122,20 @@ async function loadComplaints() {
                 }
 
                 // ── State-Driven Action Buttons ──
-                let aiBtn = `<button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="openOfficerAiModal('${encodeURIComponent(c.title || '')}', '${encodeURIComponent(c.categoryName || c.aiCategory || '')}', '${encodeURIComponent(c.description || '')}')" title="AI Action Plan"><i class="bi bi-robot"></i> AI Plan</button>`;
+                let aiBtn = `<button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="openOfficerAiModal(${c.complaintId})" title="AI Action Plan"><i class="bi bi-robot"></i> AI Plan</button>`;
                 let confirmAiBtn = `<button class="btn btn-sm btn-outline-info me-1 mb-1" onclick="openConfirmAiModal(${c.complaintId}, '${encodeURIComponent(c.aiCategory || c.aiCategoryName || '')}')" title="Confirm/Override AI Category"><i class="bi bi-check2-circle"></i> AI Cat</button>`;
+                let dupBtn = (c.isDuplicate || c.status === 'FLAGGED_DUPLICATE')
+                    ? `<button class="btn btn-sm btn-outline-success me-1 mb-1" onclick="unflagComplaintDuplicate(${c.complaintId})" title="Restore from Duplicate"><i class="bi bi-arrow-counterclockwise"></i> Unflag</button>`
+                    : `<button class="btn btn-sm btn-outline-danger me-1 mb-1" onclick="markComplaintAsDuplicate(${c.complaintId})" title="Move to Duplicate Flagged Section"><i class="bi bi-files"></i> Duplicate</button>`;
 
                 let actionBtn = '';
                 if (['CREATED', 'RECEIVED', 'OFFICER_REVIEW'].includes(c.status)) {
-                    actionBtn = `${aiBtn}${confirmAiBtn}<button class="btn btn-sm btn-danger mb-1" onclick="openAssignModal(${c.complaintId})"><i class="bi bi-person-gear"></i> Assign</button>`;
+                    actionBtn = `${aiBtn}${confirmAiBtn}${dupBtn}<button class="btn btn-sm btn-danger mb-1" onclick="openAssignModal(${c.complaintId})"><i class="bi bi-person-gear"></i> Assign</button>`;
                 } else if (c.status === 'ASSIGNED') {
                     // Prevent duplicate assign button! Show View Assignment / Work Order
-                    actionBtn = `${aiBtn}<button class="btn btn-sm btn-outline-dark mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-file-earmark-text"></i> View Assignment</button>`;
+                    actionBtn = `${aiBtn}${dupBtn}<button class="btn btn-sm btn-outline-dark mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-file-earmark-text"></i> View Assignment</button>`;
                 } else if (c.status === 'VENDOR_ACCEPTED') {
-                    actionBtn = `${aiBtn}<button class="btn btn-sm btn-outline-primary mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-geo me-1"></i> Track Vendor</button>`;
+                    actionBtn = `${aiBtn}${dupBtn}<button class="btn btn-sm btn-outline-primary mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-geo me-1"></i> Track Vendor</button>`;
                 } else if (c.status === 'IN_PROGRESS') {
                     actionBtn = `${aiBtn}<button class="btn btn-sm btn-warning mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-activity me-1"></i> Track Progress</button>`;
                 } else if (c.status === 'COMPLETED' || c.status === 'OFFICER_VERIFICATION' || (c.status === 'RESOLVED' && c.completionEvidenceImageData && !c.aiResolutionNote)) {
@@ -143,8 +146,10 @@ async function loadComplaints() {
                                  <button class="btn btn-sm btn-dark mb-1" onclick="closeComplaint(${c.complaintId})"><i class="bi bi-lock-fill"></i> Close</button>`;
                 } else if (c.status === 'CLOSED') {
                     actionBtn = `<button class="btn btn-sm btn-outline-secondary mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-eye"></i> View Details</button>`;
+                } else if (c.status === 'FLAGGED_DUPLICATE' || c.isDuplicate) {
+                    actionBtn = `${dupBtn}<button class="btn btn-sm btn-outline-secondary mb-1" onclick="viewWorkOrder(${c.complaintId})"><i class="bi bi-eye"></i> View</button>`;
                 } else {
-                    actionBtn = `${aiBtn}<button class="btn btn-sm btn-danger mb-1" onclick="openAssignModal(${c.complaintId})"><i class="bi bi-person-gear"></i> Assign</button>`;
+                    actionBtn = `${aiBtn}${confirmAiBtn}${dupBtn}<button class="btn btn-sm btn-danger mb-1" onclick="openAssignModal(${c.complaintId})"><i class="bi bi-person-gear"></i> Assign</button>`;
                 }
 
                 // AI Badges
@@ -161,7 +166,7 @@ async function loadComplaints() {
                 let dupNotice = '';
                 if (c.status === 'FLAGGED_DUPLICATE' || c.isDuplicate) {
                     const dupRef = c.duplicateOfId || c.duplicateOfComplaintId || 'N/A';
-                    dupNotice = `<div class="mt-1"><span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> FLAGGED DUPLICATE (Matches #${dupRef})</span></div>`;
+                    dupNotice = `<div class="mt-1"><span class="badge bg-danger"><i class="bi bi-files me-1"></i> FLAGGED DUPLICATE ${dupRef !== 'N/A' ? `(Matches #${dupRef})` : ''}</span></div>`;
                 }
 
                 tbody.innerHTML += `
@@ -170,6 +175,10 @@ async function loadComplaints() {
                         <td>
                             <div class="fw-bold text-dark">${c.title}</div>
                             <small class="text-muted d-block text-truncate" style="max-width: 320px;">${c.description}</small>
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-person-fill text-primary me-1"></i>Citizen: <strong>${c.citizenName || (c.citizen ? c.citizen.fullName || c.citizen.username : 'Citizen')}</strong>
+                                ${(c.citizen && c.citizen.phone) || c.citizenPhone ? ` &bull; <i class="bi bi-telephone text-secondary me-1"></i>${(c.citizen && c.citizen.phone) || c.citizenPhone}` : ''}
+                            </div>
                             ${dupNotice}
                             <div class="mt-1">
                                 <span class="badge ${pBg} me-1"><i class="bi bi-cpu-fill me-1"></i>AI ${priority} (${score}/10)</span>
@@ -919,10 +928,23 @@ async function closeComplaint(complaintId) {
 }
 
 // ── Officer AI Action Plan Modal ─────────────────────────────────────────────
-async function openOfficerAiModal(encTitle, encCat, encDesc) {
-    const title = decodeURIComponent(encTitle);
-    const category = decodeURIComponent(encCat);
-    const description = decodeURIComponent(encDesc);
+async function openOfficerAiModal(complaintIdOrTitle, encCat, encDesc) {
+    let title = 'Civic Issue';
+    let category = 'Road Maintenance';
+    let description = '';
+
+    if (typeof complaintIdOrTitle === 'number' || !isNaN(Number(complaintIdOrTitle))) {
+        const c = currentComplaintsList.find(x => x.complaintId === Number(complaintIdOrTitle));
+        if (c) {
+            title = c.title || 'Civic Issue';
+            category = c.categoryName || c.aiCategory || c.aiCategoryName || 'Road Maintenance';
+            description = c.description || '';
+        }
+    } else {
+        title = decodeURIComponent(complaintIdOrTitle || 'Civic Issue');
+        category = decodeURIComponent(encCat || 'Road Maintenance');
+        description = decodeURIComponent(encDesc || '');
+    }
 
     document.getElementById('aiActionPlanText').textContent = "Generating AI Resolution Plan...";
     document.getElementById('aiCitizenNoteText').value = "Generating citizen update draft...";
@@ -943,6 +965,47 @@ async function openOfficerAiModal(encTitle, encCat, encDesc) {
     } catch (e) {
         document.getElementById('aiActionPlanText').textContent = "1. Dispatch ward inspection squad.\n2. Review site conditions & confirm root cause.\n3. Execute fix & update complaint status.";
         document.getElementById('aiCitizenNoteText').value = "Dear Citizen, Your complaint is under review by our ward officer team.";
+    }
+}
+
+// ── Move to Duplicate Flagged Section ─────────────────────────────────────────
+async function markComplaintAsDuplicate(complaintId) {
+    if (!confirm(`Move Complaint #${complaintId} to the Duplicate Flagged section?`)) return;
+    ui.showLoader("Moving to duplicate flagged section...");
+    try {
+        const res = await apiFetch(`/officer/complaints/${complaintId}/duplicate`, {
+            method: 'PUT',
+            body: JSON.stringify({ isDuplicate: true })
+        });
+        if (res && res.ok) {
+            ui.success(`Complaint #${complaintId} moved to Duplicate Flagged section.`);
+            loadComplaints();
+        } else {
+            ui.error("Failed to mark complaint as duplicate.");
+        }
+    } catch (e) {
+        ui.error("Error updating complaint duplicate status.");
+    } finally {
+        ui.hideLoader();
+    }
+}
+
+async function unflagComplaintDuplicate(complaintId) {
+    ui.showLoader("Restoring complaint...");
+    try {
+        const res = await apiFetch(`/officer/complaints/${complaintId}/unflag-duplicate`, {
+            method: 'PUT'
+        });
+        if (res && res.ok) {
+            ui.success(`Complaint #${complaintId} restored from Duplicate Flagged section.`);
+            loadComplaints();
+        } else {
+            ui.error("Failed to restore complaint.");
+        }
+    } catch (e) {
+        ui.error("Error restoring duplicate flag.");
+    } finally {
+        ui.hideLoader();
     }
 }
 

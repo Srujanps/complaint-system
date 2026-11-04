@@ -212,19 +212,27 @@ function compressAndInspectEvidenceImage(img, fileName) {
         const skinRatio = skinPixels / count;
 
         const lowerName = (fileName || '').toLowerCase();
-        const irrelevantWords = ['selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger', 'party', 'vacation', 'family', 'holiday', 'me.jpg', 'avatar', 'profile', 'drawing', 'cartoon', 'random', 'unrelated'];
+        const irrelevantWords = [
+            'selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger',
+            'party', 'vacation', 'family', 'holiday', 'me.jpg', 'selfie.jpg', 'avatar', 'profile', 'drawing',
+            'cartoon', 'random', 'unrelated', 'kitten', 'puppy', 'bird', 'human', 'face', 'person', 'dinner',
+            'lunch', 'breakfast', 'dish', 'plate', 'snack', 'drink', 'beer', 'coffee', 'bedroom', 'living_room',
+            'indoor', 'kitchen', 'movie', 'poster', 'car_interior', 'dashboard'
+        ];
         const isIrrelevantName = irrelevantWords.some(w => lowerName.includes(w));
 
-        if (isIrrelevantName || skinRatio > 0.35) {
+        if (isIrrelevantName || skinRatio > 0.22) {
             visualHint = 'Irrelevant';
-        } else if (lowerName.includes('water') || lowerName.includes('pipe') || lowerName.includes('leak') || lowerName.includes('flood') || (avgB > avgR * 1.15 && avgB > 80)) {
+        } else if (lowerName.includes('water') || lowerName.includes('pipe') || lowerName.includes('leak') || lowerName.includes('burst') || lowerName.includes('tap') || (avgB > avgR * 1.25 && avgB > 90)) {
             visualHint = 'Water Supply';
-        } else if (lowerName.includes('drain') || lowerName.includes('sewage') || lowerName.includes('clog') || (avgG > avgB * 1.1 && avgLum < 110)) {
+        } else if (lowerName.includes('drain') || lowerName.includes('sewage') || lowerName.includes('gutter') || lowerName.includes('manhole') || lowerName.includes('clog') || (avgG > avgB * 1.15 && avgLum < 90)) {
             visualHint = 'Drainage';
-        } else if (lowerName.includes('light') || lowerName.includes('lamp') || lowerName.includes('pole') || (avgLum < 65 && brightSpots > 5)) {
+        } else if (lowerName.includes('light') || lowerName.includes('lamp') || lowerName.includes('pole') || lowerName.includes('dark') || lowerName.includes('bulb') || (avgLum < 55 && brightSpots >= 3)) {
             visualHint = 'Street Lights';
-        } else if (lowerName.includes('garb') || lowerName.includes('waste') || lowerName.includes('trash') || lowerName.includes('dump') || (Math.abs(avgR - avgG) > 25 && avgLum > 110)) {
+        } else if (lowerName.includes('garb') || lowerName.includes('waste') || lowerName.includes('trash') || lowerName.includes('dump') || lowerName.includes('litter') || lowerName.includes('bin') || (Math.abs(avgR - avgG) > 30 && avgLum > 95)) {
             visualHint = 'Garbage';
+        } else if (lowerName.includes('road') || lowerName.includes('pothole') || lowerName.includes('asphalt') || lowerName.includes('tar') || lowerName.includes('crater') || lowerName.includes('crack') || lowerName.includes('street')) {
+            visualHint = 'Road Damage';
         } else {
             visualHint = 'Road Damage';
         }

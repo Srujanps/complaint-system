@@ -422,11 +422,26 @@ function saveDb() {
 }
 
 // ── Helper to format Complaint Response to match Spring Boot DTO ─────────
+// ── Helper to resolve Department from Category ────────────────────────────
+function resolveDepartment(cat) {
+    if (!cat) return 'Road Maintenance';
+    const l = String(cat).toLowerCase();
+    if (l.includes('road') || l.includes('pothole') || l.includes('asphalt') || l.includes('traffic')) return 'Road Maintenance';
+    if (l.includes('water') || l.includes('pipe') || l.includes('leak') || l.includes('burst')) return 'Water Supply';
+    if (l.includes('drain') || l.includes('sewage') || l.includes('gutter') || l.includes('manhole')) return 'Drainage and Sewerage';
+    if (l.includes('electr') || l.includes('light') || l.includes('power') || l.includes('wire') || l.includes('lamp')) return 'Electrical Maintenance';
+    if (l.includes('garb') || l.includes('waste') || l.includes('sanitat') || l.includes('clean') || l.includes('dump')) return 'Sanitation and Waste Management';
+    return 'Road Maintenance';
+}
+
 function formatComplaint(c, db) {
     const citizen = db.users.find(u => u.userId === c.citizenId);
     const category = db.categories.find(cat => cat.categoryId === c.categoryId);
     const assignment = db.assignments ? db.assignments.find(a => a.complaintId === c.complaintId && a.status !== 'REJECTED') : null;
     const vendor = assignment ? db.users.find(u => u.userId === assignment.vendorId) : null;
+
+    const catName = category ? category.name : (c.aiCategoryName || c.categoryName || 'Road Damage');
+    const dept = c.department || resolveDepartment(catName);
 
     return {
         complaintId: c.complaintId,
@@ -439,7 +454,11 @@ function formatComplaint(c, db) {
         status: c.status,
         priority: c.priority,
         severityScore: c.severityScore || 5,
-        aiCategoryName: c.aiCategoryName || (category ? category.name : null),
+        categoryId: c.categoryId,
+        categoryName: catName,
+        department: dept,
+        aiCategory: catName,
+        aiCategoryName: c.aiCategoryName || catName,
         aiSeverityScore: c.aiSeverityScore || c.severityScore,
         aiAnalysisReasoning: c.aiAnalysisReasoning || null,
         isAiProcessed: Boolean(c.isAiProcessed),
@@ -451,6 +470,9 @@ function formatComplaint(c, db) {
         resolvedAt: c.resolvedAt || null,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
+        isDuplicate: Boolean(c.isDuplicate || c.status === 'FLAGGED_DUPLICATE' || c.status === 'DUPLICATE'),
+        duplicateOfId: c.duplicateOfId || c.duplicateOfComplaintId || null,
+        duplicateOfRef: c.duplicateOfRef || null,
         assignedVendorId: vendor ? vendor.userId : null,
         assignedVendorName: vendor ? (vendor.fullName || vendor.username) : null,
         assignedVendorUsername: vendor ? vendor.username : null,
@@ -471,6 +493,9 @@ function formatComplaint(c, db) {
         resolutionEvidenceImageData: (assignment && assignment.completionEvidenceImageData) || c.resolutionEvidenceImageData || null,
         completedAt: (assignment && assignment.completedAt) || c.resolvedAt || null,
         assignmentHistory: assignment ? (assignment.history || []) : [],
+        citizenName: citizen ? (citizen.fullName || citizen.username) : 'Citizen',
+        citizenPhone: citizen ? citizen.phone : '',
+        citizenEmail: citizen ? citizen.email : '',
         citizen: citizen ? {
             userId: citizen.userId,
             username: citizen.username,
@@ -491,26 +516,44 @@ function formatComplaint(c, db) {
 
 function isLocationInConstituency(location, constituency) {
     if (!location || !constituency) return false;
-    const loc = String(location).toLowerCase();
-    const rep = String(constituency).toLowerCase();
+    const locRaw = String(location).trim().toLowerCase();
+    const repRaw = String(constituency).trim().toLowerCase();
 
-    // 1. Direct ward number match (e.g. "Ward 12" in "Ward 12 - Central District")
-    const repWard = rep.match(/ward\s*(\d+)/i);
-    const locWard = loc.match(/ward\s*(\d+)/i);
+    // Universal administrative view
+    if (['all', 'all wards', 'city', 'hq', 'general'].includes(repRaw)) return true;
+
+    // 1. Direct exact or substring match
+    if (locRaw.includes(repRaw) || repRaw.includes(locRaw)) return true;
+
+    // 2. Normalized match (stripping spaces, hyphens, punctuation: "indira nagar" matches "indiranagar")
+    const normLoc = locRaw.replace(/[^a-z0-9]/g, '');
+    const normRep = repRaw.replace(/[^a-z0-9]/g, '');
+    if (normLoc.length >= 3 && normRep.length >= 3) {
+        if (normLoc.includes(normRep) || normRep.includes(normLoc)) return true;
+    }
+
+    // 3. Ward / Sector number matching
+    const repWard = repRaw.match(/(?:ward|sector|w|sec)[\s\-_.]*(\d+)/i);
+    const locWard = locRaw.match(/(?:ward|sector|w|sec)[\s\-_.]*(\d+)/i);
     if (repWard && locWard) {
         return repWard[1] === locWard[1];
     }
     if (repWard) {
         const wNum = repWard[1];
-        if (loc.includes(`ward ${wNum}`) || loc.includes(`ward-${wNum}`) || loc.includes(`ward${wNum}`)) {
-            return true;
-        }
+        const wRegex = new RegExp(`(?:ward|w|sector|sec)?[\\s\\-_.]*\\b${wNum}\\b`, 'i');
+        if (wRegex.test(locRaw)) return true;
     }
 
-    // 2. Specific locality / district tokens
-    const tokens = rep.split(/[-–,]/).map(t => t.trim().toLowerCase()).filter(t => t.length > 3 && !t.startsWith('ward'));
-    for (const t of tokens) {
-        if (loc.includes(t)) return true;
+    // 4. Locality / District token matching
+    const stopWords = new Set(['the', 'and', 'near', 'road', 'street', 'cross', 'main', 'opp', 'opposite', 'behind', 'beside', 'area', 'ward', 'zone', 'layout', 'stage', 'block', 'city', 'nagar', 'circle', 'junction', 'district']);
+    const repTokens = repRaw.split(/[\s,.\-_/]+/).filter(t => t.length >= 3 && !stopWords.has(t));
+    const locTokens = locRaw.split(/[\s,.\-_/]+/).filter(t => t.length >= 3 && !stopWords.has(t));
+
+    for (const rt of repTokens) {
+        if (locRaw.includes(rt)) return true;
+        for (const lt of locTokens) {
+            if (lt.includes(rt) || rt.includes(lt)) return true;
+        }
     }
 
     return false;
@@ -585,7 +628,11 @@ async function analyzeComplaintAI(title, description, imageBase64, fileName, vis
         'selfie', 'portrait', 'personal', 'dog', 'cat', 'animal', 'pet', 'food', 'pizza', 'burger',
         'party', 'vacation', 'family', 'holiday', 'room', 'bed', 'sofa', 'tv', 'chair', 'table',
         'screenshot', 'meme', 'wallpaper', 'game', 'avatar', 'profile', 'drawing', 'cartoon',
-        'car_interior', 'car-interior', 'dashboard', 'flower', 'plant', 'random', 'unrelated', 'me.jpg', 'selfie.jpg'
+        'car_interior', 'car-interior', 'dashboard', 'flower', 'plant', 'random', 'unrelated', 'me.jpg', 'selfie.jpg',
+        'human', 'face', 'person', 'baby', 'child', 'boy', 'girl', 'man', 'woman', 'self', 'my_photo', 'myphoto',
+        'puppy', 'kitten', 'bird', 'parrot', 'fish', 'dish', 'lunch', 'dinner', 'snack', 'drink', 'beer', 'coffee',
+        'tea', 'restaurant', 'cafe', 'bedroom', 'living_room', 'kitchen', 'mall_interior', 'gym', 'workout',
+        'cinema', 'movie', 'poster', 'selfie_'
     ];
     const isExplicitlyIrrelevant = visualHint === 'Irrelevant' || irrelevantKeywords.some(k => fullText.includes(k));
 
@@ -711,16 +758,13 @@ FileName: ${fileName || ''}`;
     let sugTitle = '';
     let sugDesc = '';
 
-    if (fullText.includes('water') || fullText.includes('pipe') || fullText.includes('leak') || fullText.includes('burst') || fullText.includes('contamination') || fullText.includes('drinking') || fullText.includes('tap') || visualHint === 'Water Supply') {
-        cat = 'Water Supply';
-        catId = 4;
-        severity = 9;
-        priority = 'HIGH';
-        sla = 24;
-        reasoning = 'AI Vision: Detected water supply pipeline rupture and continuous water leakage. High priority response required to prevent treated water loss and local street flooding.';
-        sugTitle = title || 'Water Supply Pipeline Rupture & Leakage';
-        sugDesc = description || 'Citizen submitted photographic evidence showing active water supply pipeline leak/rupture causing clean water loss. Immediate water board plumbing dispatch required.';
-    } else if (fullText.includes('drain') || fullText.includes('sewage') || fullText.includes('gutter') || fullText.includes('overflow') || fullText.includes('clog') || fullText.includes('manhole') || visualHint === 'Drainage') {
+    const isDrainage = fullText.includes('drain') || fullText.includes('sewage') || fullText.includes('gutter') || fullText.includes('manhole') || fullText.includes('clog') || fullText.includes('sludge') || visualHint === 'Drainage';
+    const isWater = !isDrainage && (fullText.includes('pipe') || fullText.includes('pipeline') || fullText.includes('leak') || fullText.includes('burst') || fullText.includes('drinking') || fullText.includes('tap') || fullText.includes('water supply') || fullText.includes('water') || visualHint === 'Water Supply');
+    const isGarbage = fullText.includes('garb') || fullText.includes('waste') || fullText.includes('dump') || fullText.includes('trash') || fullText.includes('litter') || fullText.includes('bin') || fullText.includes('dustbin') || fullText.includes('debris') || visualHint === 'Garbage';
+    const isStreetLight = fullText.includes('light') || fullText.includes('lamp') || fullText.includes('pole') || fullText.includes('dark') || fullText.includes('bulb') || fullText.includes('wire') || fullText.includes('electr') || fullText.includes('illumination') || visualHint === 'Street Lights';
+    const isRoad = fullText.includes('road') || fullText.includes('pothole') || fullText.includes('asphalt') || fullText.includes('crater') || fullText.includes('tar') || fullText.includes('crack') || fullText.includes('pavement') || fullText.includes('footpath') || visualHint === 'Road Damage';
+
+    if (isDrainage) {
         cat = 'Drainage';
         catId = 5;
         severity = 8;
@@ -729,7 +773,16 @@ FileName: ${fileName || ''}`;
         reasoning = 'AI Vision: Identified blocked municipal drainage channel and sewage backflow. Sanitation jetting machine required to prevent public health risk.';
         sugTitle = title || 'Blocked Municipal Drain & Sewage Overflow';
         sugDesc = description || 'Citizen submitted photographic evidence depicting clogged stormwater drain / overflowing sewage causing stagnation and sanitation risk. Sanitation jetting machine required.';
-    } else if (fullText.includes('garb') || fullText.includes('waste') || fullText.includes('dump') || fullText.includes('trash') || fullText.includes('smell') || fullText.includes('litter') || fullText.includes('bin') || visualHint === 'Garbage') {
+    } else if (isWater) {
+        cat = 'Water Supply';
+        catId = 4;
+        severity = 9;
+        priority = 'HIGH';
+        sla = 24;
+        reasoning = 'AI Vision: Detected water supply pipeline rupture and continuous water leakage. High priority response required to prevent treated water loss and local street flooding.';
+        sugTitle = title || 'Water Supply Pipeline Rupture & Leakage';
+        sugDesc = description || 'Citizen submitted photographic evidence showing active water supply pipeline leak/rupture causing clean water loss. Immediate water board plumbing dispatch required.';
+    } else if (isGarbage) {
         cat = 'Garbage';
         catId = 3;
         severity = 6;
@@ -738,7 +791,7 @@ FileName: ${fileName || ''}`;
         reasoning = 'AI Vision: Identified uncollected municipal solid waste dump causing civic obstruction and environmental hygiene concern.';
         sugTitle = title || 'Illegal Garbage Dump & Solid Waste Overflow';
         sugDesc = description || 'Citizen submitted photographic evidence depicting accumulated municipal solid waste and unattended garbage dump on public roadway.';
-    } else if (fullText.includes('light') || fullText.includes('lamp') || fullText.includes('dark') || fullText.includes('pole') || fullText.includes('bulb') || fullText.includes('wire') || fullText.includes('electr') || visualHint === 'Street Lights') {
+    } else if (isStreetLight) {
         cat = 'Street Lights';
         catId = 2;
         severity = 5;
@@ -748,7 +801,6 @@ FileName: ${fileName || ''}`;
         sugTitle = title || 'Non-Functional Street Light & Safety Hazard';
         sugDesc = description || 'Citizen submitted photographic evidence showing malfunctioning street light pole in public transit zone, causing low visibility at night.';
     } else {
-        // Road Damage default
         cat = 'Road Damage';
         catId = 1;
         severity = fullText.includes('deep') || fullText.includes('accident') || fullText.includes('severe') || fullText.includes('crater') ? 8 : 7;
@@ -1382,7 +1434,11 @@ async function handleRequest(req, res) {
         }
 
         if (pathname === '/api/complaints/duplicates' && req.method === 'GET') {
-            return sendJson(200, { content: [], totalElements: 0, totalPages: 0 });
+            const dups = db.complaints
+                .filter(c => c.isDuplicate || c.status === 'FLAGGED_DUPLICATE' || c.status === 'DUPLICATE')
+                .map(c => formatComplaint(c, db))
+                .reverse();
+            return sendJson(200, { content: dups, totalElements: dups.length, totalPages: 1 });
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -1570,7 +1626,53 @@ async function handleRequest(req, res) {
         }
 
         if (pathname === '/api/officer/complaints/duplicates' && req.method === 'GET') {
-            return sendJson(200, { content: [], totalElements: 0, totalPages: 0 });
+            const dups = db.complaints
+                .filter(c => c.isDuplicate || c.status === 'FLAGGED_DUPLICATE' || c.status === 'DUPLICATE')
+                .map(c => formatComplaint(c, db))
+                .reverse();
+            return sendJson(200, {
+                content: dups,
+                totalElements: dups.length,
+                totalPages: 1,
+                number: 0,
+                size: dups.length
+            });
+        }
+
+        if (pathname.match(/^\/api\/officer\/complaints\/\d+\/duplicate$/) && (req.method === 'PUT' || req.method === 'POST')) {
+            const id = parseInt(pathname.split('/')[4], 10);
+            const c = db.complaints.find(k => k.complaintId === id);
+            if (!c) return sendJson(404, 'Complaint not found');
+            c.previousStatus = c.status;
+            c.status = 'FLAGGED_DUPLICATE';
+            c.isDuplicate = true;
+            c.duplicateFlaggedAt = new Date().toISOString();
+            c.duplicateFlaggedBy = currentUser ? currentUser.username : 'officer';
+            if (body && body.duplicateOfId) {
+                c.duplicateOfId = body.duplicateOfId;
+                c.duplicateOfRef = `GRV-2026-${String(body.duplicateOfId).padStart(6, '0')}`;
+            }
+            c.updatedAt = new Date().toISOString();
+            saveDb();
+            return sendJson(200, {
+                message: 'Complaint moved to Duplicate Flagged section successfully.',
+                complaint: formatComplaint(c, db)
+            });
+        }
+
+        if (pathname.match(/^\/api\/officer\/complaints\/\d+\/unflag-duplicate$/) && (req.method === 'PUT' || req.method === 'POST')) {
+            const id = parseInt(pathname.split('/')[4], 10);
+            const c = db.complaints.find(k => k.complaintId === id);
+            if (!c) return sendJson(404, 'Complaint not found');
+            c.status = c.previousStatus || 'RECEIVED';
+            c.isDuplicate = false;
+            c.duplicateFlaggedAt = null;
+            c.updatedAt = new Date().toISOString();
+            saveDb();
+            return sendJson(200, {
+                message: 'Complaint restored from Duplicate Flagged section.',
+                complaint: formatComplaint(c, db)
+            });
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -1760,7 +1862,7 @@ async function handleRequest(req, res) {
         // ─────────────────────────────────────────────────────────────────
         if (pathname === '/api/representative/complaints' && req.method === 'GET') {
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             const matched = db.complaints
                 .filter(c => isLocationInConstituency(c.location, repArea))
                 .map(c => formatComplaint(c, db))
@@ -1776,7 +1878,7 @@ async function handleRequest(req, res) {
 
         if (pathname === '/api/representative/complaints/stats' && req.method === 'GET') {
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = rep ? (rep.constituency || 'Ward 12 - Central District') : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             const areaComplaints = db.complaints.filter(c => isLocationInConstituency(c.location, repArea));
             const total = areaComplaints.length;
             const byStatus = {};
@@ -1808,7 +1910,7 @@ async function handleRequest(req, res) {
             if (!c) return sendJson(404, 'Complaint not found');
 
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             if (!isLocationInConstituency(c.location, repArea)) {
                 return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
             }
@@ -1830,7 +1932,7 @@ async function handleRequest(req, res) {
             if (!c) return sendJson(404, 'Complaint not found');
 
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             if (!isLocationInConstituency(c.location, repArea)) {
                 return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
             }
@@ -1851,7 +1953,7 @@ async function handleRequest(req, res) {
             if (!c) return sendJson(404, 'Complaint not found');
 
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             if (!isLocationInConstituency(c.location, repArea)) {
                 return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
             }
@@ -1873,7 +1975,7 @@ async function handleRequest(req, res) {
             if (!c) return sendJson(404, 'Complaint not found');
 
             const rep = currentUser || db.users.find(u => u.role === 'REPRESENTATIVE');
-            const repArea = (rep && rep.constituency) ? rep.constituency : 'Ward 12 - Central District';
+            const repArea = (query.area && query.area.trim()) || (currentUser && currentUser.constituency) || (rep && rep.constituency) || 'Ward 12 - Central District';
             if (!isLocationInConstituency(c.location, repArea)) {
                 return sendJson(403, { error: 'Forbidden: Access restricted. You can only manage complaints within your assigned jurisdiction.' });
             }
@@ -2198,27 +2300,116 @@ async function handleRequest(req, res) {
                 }
             }
 
-            // 5. CITIZEN specific queries
-            if (userRole === 'CITIZEN' || queryText.includes('my complaint') || queryText.includes('my status') || queryText.includes('track my')) {
+            // 5. CITIZEN specific queries & In-Depth Civic Guidance
+            if (queryText.includes('my complaint') || queryText.includes('my status') || queryText.includes('track my') || queryText.includes('my ticket') || queryText.includes('history')) {
                 const cUser = userObj ? userObj.userId : 1;
                 const myComplaints = db.complaints.filter(c => c.citizenId === cUser || c.citizenId === 1);
                 if (myComplaints.length > 0) {
-                    const items = myComplaints.slice(0, 3).map(c => `• **${c.complaintRef}** — *${c.title}*\n  Status: \`${c.status}\` | Priority: **${c.priority}** | Target: ${c.slaTargetHours}h`).join('\n');
+                    const items = myComplaints.slice(0, 4).map(c => `• **${c.complaintRef}** — *${c.title}*\n  Status: \`${c.status}\` | Priority: **${c.priority}** | Target: ${c.slaTargetHours}h | 📍 ${c.location}`).join('\n\n');
                     return sendJson(200, {
-                        reply: `⏱️ **Your Registered Grievances (${myComplaints.length}):**\n\n${items}\n\n👉 Visit **My Complaints** for complete milestone history and photo verification proof.`
+                        reply: `⏱️ **Your Registered Grievances (${myComplaints.length} Total):**\n\n${items}\n\n👉 Open **My Complaints** in the top navigation for complete photographic milestone proof and contractor details.`
+                    });
+                } else {
+                    return sendJson(200, {
+                        reply: `You currently have no complaints registered under this account. Click **Submit Complaint** to lodge a new civic issue with photographic evidence!`
                     });
                 }
             }
 
-            if (queryText.includes('how to log') || queryText.includes('how do i submit') || queryText.includes('submit a problem') || queryText.includes('lodge')) {
+            // Road & Potholes
+            if (queryText.includes('pothole') || queryText.includes('road') || queryText.includes('asphalt') || queryText.includes('crater') || queryText.includes('tar') || queryText.includes('footpath') || queryText.includes('pavement')) {
                 return sendJson(200, {
-                    reply: `📝 **How to Lodge a Civic Complaint:**\n\n1. Click **Submit Complaint** in the menu.\n2. **Add Evidence Photo:** Tap *Open Camera* or upload a picture. Our AI Vision will inspect the hazard and autofill the category!\n3. **Location:** Click *Use my current location* to capture exact GPS coordinates.\n4. Click **Submit Complaint** to receive your unique tracking Reference ID (\`GRV-2026-XXXXXX\`)!`
+                    reply: `🛣️ **Road Maintenance & Pothole Redressal:**\n\n• **Target SLA:** 24 Hours for arterial and ward transit roads.\n• **Repair Process:** Municipal asphalt repair squads are dispatched with hot-mix bitumen (VG-30) and vibratory rollers.\n• **Filing Instructions:** Take a clear photo of the damaged section from a safe roadside position, click **Use my current location**, and submit.\n• **Verification:** Contractors must submit geo-tagged before & after photographs validated by AI Vision before work sign-off.`
                 });
             }
 
-            if (queryText.includes('contact') || queryText.includes('help') || queryText.includes('number') || queryText.includes('helpline') || queryText.includes('1800') || queryText.includes('emergency')) {
+            // Water Supply & Pipeline Rupture
+            if (queryText.includes('water') || queryText.includes('pipe') || queryText.includes('leak') || queryText.includes('burst') || queryText.includes('tap') || queryText.includes('drinking water') || queryText.includes('contamination')) {
                 return sendJson(200, {
-                    reply: `📞 **Municipal Emergency & 24x7 Helplines:**\n\n• **Central Civic Helpline:** 1913 / Toll-Free 1800-11-2233\n• **Water Board Emergency & Leakage:** 1916\n• **Electricity Breakdown & Streetlights:** 1912\n• **Disaster Management & Flooding:** 1077\n• **City Central Control Room:** +91 80 2266 0000`
+                    reply: `💧 **Water Supply & Pipeline Rupture Protocol:**\n\n• **Target SLA:** 24 Hours (Emergency Priority).\n• **Immediate Action:** Line pressure throttling is initiated at sectional valves to prevent loss of potable water.\n• **Emergency Hotline:** Call Water Board Emergency at **1916** for major pipeline ruptures.\n• **Filing Tip:** Upload a photo showing the active leak; AI Vision will automatically classify severity as High/Critical and prioritize contractor dispatch.`
+                });
+            }
+
+            // Drainage & Sewage
+            if (queryText.includes('drain') || queryText.includes('sewage') || queryText.includes('gutter') || queryText.includes('manhole') || queryText.includes('overflow') || queryText.includes('clog') || queryText.includes('stagnant') || queryText.includes('sludge')) {
+                return sendJson(200, {
+                    reply: `🌊 **Drainage & Sewage Redressal:**\n\n• **Target SLA:** 24 Hours for overflowing drains and blocked manholes.\n• **Equipment Deployed:** 200-bar high-velocity vacuum jetting trucks and super-sucker silt machines.\n• **Sanitation Advisory:** Surface is disinfected with bleaching powder and lime post-clearance to mitigate public health hazards.\n• **Tip:** Upload an image of the drain blockage to help ward officers dispatch the correct jetting squad.`
+                });
+            }
+
+            // Garbage & Solid Waste
+            if (queryText.includes('garb') || queryText.includes('waste') || queryText.includes('trash') || queryText.includes('dump') || queryText.includes('litter') || queryText.includes('dustbin') || queryText.includes('bin') || queryText.includes('sanitation')) {
+                return sendJson(200, {
+                    reply: `🗑️ **Municipal Solid Waste & Garbage Clearance:**\n\n• **Target SLA:** 24–48 Hours for public dump clearance.\n• **Clearance Squad:** 14-cubic-meter municipal tipper trucks and hydraulic compactors.\n• **Waste Segregation:** Segregate dry, wet, and sanitary waste before daily morning compactor pickup.\n• **Civic Notice:** Illegal roadside dumping is punishable under municipal bylaws. Report dump hotspots with a photo for immediate clearance.`
+                });
+            }
+
+            // Street Lights & Electrical
+            if (queryText.includes('light') || queryText.includes('streetlight') || queryText.includes('lamp') || queryText.includes('pole') || queryText.includes('dark') || queryText.includes('bulb') || queryText.includes('illumination') || queryText.includes('cable') || queryText.includes('wire') || queryText.includes('bescom')) {
+                return sendJson(200, {
+                    reply: `💡 **Street Lighting & Electrical Redressal:**\n\n• **Target SLA:** 36–48 Hours for luminaire repairs or pole diagnostics.\n• **Technical Standards:** Defective lamps are replaced with IP66 energy-efficient 90W LED fixtures.\n• **Emergency Shock Hazard:** If an electrical pole has dangling live wires, call the Electricity Emergency Line at **1912** immediately.\n• **Tip:** Take a photo showing the pole number or dark stretch so electrical contractors can locate the unit quickly.`
+                });
+            }
+
+            // SLA, Deadlines & Timelines
+            if (queryText.includes('sla') || queryText.includes('timeline') || queryText.includes('deadline') || queryText.includes('how long') || queryText.includes('turnaround') || queryText.includes('duration') || queryText.includes('target hours') || queryText.includes('hours')) {
+                return sendJson(200, {
+                    reply: `⏱️ **Municipal Service Level Agreement (SLA) Matrix:**\n\n• 🕳️ **Road Damage & Potholes:** 24 Hours (Urgent asphalt patching)\n• 💧 **Water Supply Pipeline Rupture:** 24 Hours (Emergency plumbing)\n• 🌊 **Blocked Drains & Sewage:** 24 Hours (Super-sucker jetting)\n• 💡 **Street Light Fixture:** 36–48 Hours (LED replacement)\n• 🗑️ **Garbage Dump Clearance:** 48 Hours (Compactor truck dispatch)\n\n⚡ *Automatic Escalation:* Tickets exceeding SLA targets automatically escalate to the Zonal Executive Engineer and Ward Representative.`
+                });
+            }
+
+            // Photo Upload & AI Vision Validation
+            if (queryText.includes('photo') || queryText.includes('image') || queryText.includes('camera') || queryText.includes('rejection') || queryText.includes('reject') || queryText.includes('picture') || queryText.includes('evidence')) {
+                return sendJson(200, {
+                    reply: `📸 **AI Vision Photo Validation Guidelines:**\n\n1. **What is Accepted:** Genuine municipal civic grievances including damaged roads, potholes, leaking pipes, clogged drains, overflowing garbage, and broken streetlights.\n2. **What is Rejected:** Personal photos, selfies, portraits, animals/pets, food, indoor furniture, memes, documents, and screenshots.\n3. **Rejection Notice:** Uploading unrelated photos results in rejection: *"The uploaded image does not appear to be related to a public grievance. Please upload a valid image."*\n4. **Auto-Fill:** When a valid civic photo is uploaded, AI Vision automatically identifies the category, estimates severity, and drafts the title and description for your review before submission.`
+                });
+            }
+
+            // Location & GPS
+            if (queryText.includes('location') || queryText.includes('gps') || queryText.includes('address') || queryText.includes('detect') || queryText.includes('map') || queryText.includes('coordinates') || queryText.includes('ward')) {
+                return sendJson(200, {
+                    reply: `📍 **Location Detection & GPS Assistance:**\n\n• **Auto-Detect:** On the complaint form, click **Use my current location**. The system captures exact device coordinates (latitude & longitude) and resolves the street address.\n• **Manual Entry:** If browser GPS is disabled, type your street name, ward number, and city in the location field.\n• **Landmarks:** Always include a notable landmark (e.g. *Opposite City Hospital, Near Metro Station*) so field contractors can locate the site instantly.`
+                });
+            }
+
+            // Escalation & Quality / Representative
+            if (queryText.includes('escalate') || queryText.includes('representative') || queryText.includes('mla') || queryText.includes('councilor') || queryText.includes('poor') || queryText.includes('reopen') || queryText.includes('unsatisfied')) {
+                return sendJson(200, {
+                    reply: `📢 **Escalation & Public Accountability:**\n\n• **Elected Representatives:** Ward Councilors and MLAs monitor grievances in their constituency. They can inspect contractor before/after proofs, update priority to **CRITICAL**, and issue official legislative escalation memos.\n• **Reopening:** If repair quality is unsatisfactory, you can reopen the complaint with photographic evidence of defect.\n• **Quality Check:** Every completed repair undergoes an AI Vision QA score comparison before municipal sign-off.`
+                });
+            }
+
+            // Multi-device login & Account
+            if (queryText.includes('account') || queryText.includes('login') || queryText.includes('device') || queryText.includes('mobile') || queryText.includes('password') || queryText.includes('multi-device') || queryText.includes('register') || queryText.includes('signup')) {
+                return sendJson(200, {
+                    reply: `🔐 **Account & Multi-Device Access:**\n\n• **Flexible Sign-In:** You can log in using either your **Username**, **Email Address**, or **Mobile Number** along with your password.\n• **Multi-Device Support:** You can remain logged in or sign in simultaneously across multiple devices (mobile phones, tablets, and desktop computers).\n• **Strict Uniqueness:** For account security, usernames, email addresses, and mobile numbers cannot be reused by multiple accounts upon registration.`
+                });
+            }
+
+            // How to Lodge / Guide
+            if (queryText.includes('how to') || queryText.includes('submit') || queryText.includes('lodge') || queryText.includes('step') || queryText.includes('guide') || queryText.includes('procedure')) {
+                return sendJson(200, {
+                    reply: `📝 **Step-by-Step Guide to Filing a Grievance:**\n\n1. **Open Submission Form:** Click **Submit Complaint** in the menu.\n2. **Evidence Photo:** Tap *Open Camera* or select a photo of the civic issue. AI Vision will validate the issue and suggest category and details!\n3. **GPS Location:** Tap *Use my current location* to capture exact geo-coordinates.\n4. **Review & Submit:** Review the AI-generated details, make any adjustments, and click **Submit Complaint**.\n5. **Track Progress:** Save your reference ID (\`GRV-2026-XXXXXX\`) to track contractor dispatch and completion proof in real-time!`
+                });
+            }
+
+            // Emergency Contacts
+            if (queryText.includes('contact') || queryText.includes('help') || queryText.includes('number') || queryText.includes('helpline') || queryText.includes('1800') || queryText.includes('emergency') || queryText.includes('call') || queryText.includes('phone')) {
+                return sendJson(200, {
+                    reply: `📞 **Municipal Emergency & 24x7 Helplines:**\n\n• **Central Civic Redressal Helpline:** 1913 / Toll-Free 1800-11-2233\n• **Water Board Emergency & Leakage:** 1916\n• **Electricity Breakdown & Streetlights:** 1912\n• **Disaster Management & Flooding:** 1077\n• **City Central Control Room:** +91 80 2266 0000\n• **Fire & Rescue Emergency:** 101`
+                });
+            }
+
+            // Friendly Greetings & Politeness
+            if (queryText.match(/\b(hi|hello|hey|namaste|vanakkam|namaskara|good morning|good afternoon|good evening)\b/)) {
+                return sendJson(200, {
+                    reply: `👋 **Hello and Welcome!** I am your Municipal AI Civic Assistant.\n\nHere are some things I can assist you with right now:\n• 📝 Guide you through lodging a complaint with AI photo verification\n• ⏱️ Check the real-time status of your complaints\n• ℹ️ Explain municipal SLAs for roads, water, sewage, garbage, and streetlights\n• 📞 Provide emergency helpline numbers\n\nHow can I help you today?`
+                });
+            }
+
+            if (queryText.match(/\b(thanks|thank you|dhanyawad|dhanyavada|nandri)\b/)) {
+                return sendJson(200, {
+                    reply: `You're very welcome! 😊 It is our duty to keep our city clean, safe, and well-maintained. Please let me know if you need any other civic assistance!`
                 });
             }
 

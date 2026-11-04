@@ -377,7 +377,8 @@ async function renderRepresentativeDashboard(contentDiv, chartsContainer) {
         <div id="repRecentWorkSection" class="mb-4"></div>`;
 
     try {
-        const res = await apiFetch('/representative/complaints/stats', { method: 'GET' });
+        const areaParam = constituency ? `?area=${encodeURIComponent(constituency)}` : '';
+        const res = await apiFetch(`/representative/complaints/stats${areaParam}`, { method: 'GET' });
         if (res && res.ok) {
             const data = await res.json();
             const el = id => document.getElementById(id);
@@ -421,7 +422,8 @@ async function renderRepresentativeDashboard(contentDiv, chartsContainer) {
         }
 
         // Render Recent Work Done in Constituency
-        const resComplaints = await apiFetch('/representative/complaints?page=0&size=5', { method: 'GET' });
+        const cAreaParam = constituency ? `&area=${encodeURIComponent(constituency)}` : '';
+        const resComplaints = await apiFetch(`/representative/complaints?page=0&size=5${cAreaParam}`, { method: 'GET' });
         if (resComplaints && resComplaints.ok) {
             const cData = await resComplaints.json();
             const list = cData.content || [];

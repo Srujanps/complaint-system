@@ -34,7 +34,9 @@ async function loadAll() {
 
 async function loadStats() {
     try {
-        const res = await apiFetch('/representative/complaints/stats', { method: 'GET' });
+        const constituency = localStorage.getItem('constituency') || '';
+        const areaParam = constituency ? `?area=${encodeURIComponent(constituency)}` : '';
+        const res = await apiFetch(`/representative/complaints/stats${areaParam}`, { method: 'GET' });
         if (res && res.ok) {
             const data = await res.json();
             const el = id => document.getElementById(id);
@@ -48,11 +50,13 @@ async function loadStats() {
     } catch (e) { /* optional */ }
 }
 
-async function loadComplaints() {
+async function loadComplaints(overrideArea = null) {
+    const constituency = overrideArea !== null ? overrideArea : (localStorage.getItem('constituency') || '');
     const tbody = document.getElementById('complaintsTableBody');
     tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4"><div class="spinner-border" style="color:#5c35cc"></div></td></tr>`;
     try {
-        const res = await apiFetch('/representative/complaints?page=0&size=100', { method: 'GET' });
+        const areaParam = constituency ? `&area=${encodeURIComponent(constituency)}` : '';
+        const res = await apiFetch(`/representative/complaints?page=0&size=100${areaParam}`, { method: 'GET' });
         if (res && res.ok) {
             const data = await res.json();
             allComplaints = data.content || [];
@@ -89,7 +93,18 @@ function renderTable() {
     if (priorityFilter !== 'ALL')     list = list.filter(c => (c.priority || 'MEDIUM') === priorityFilter);
 
     if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-5">No complaints found for selected filters.</td></tr>`;
+        const repArea = localStorage.getItem('constituency') || 'Your Area';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <div class="p-4 bg-light rounded border d-inline-block text-center" style="max-width: 520px;">
+                        <i class="bi bi-geo-alt text-primary fs-1 d-block mb-2"></i>
+                        <h6 class="fw-bold text-dark">No Public Grievances Reported in "${repArea}"</h6>
+                        <p class="text-muted small mb-3">When citizens submit grievances located in or around "${repArea}", they will automatically appear here with live GPS coordinates, contractor proofs, and inspection tools.</p>
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadComplaints('all')"><i class="bi bi-grid me-1"></i>View All Municipal Wards</button>
+                    </div>
+                </td>
+            </tr>`;
         return;
     }
 

@@ -287,21 +287,71 @@ async function runTests() {
         const resEndorse = await mockCall('PUT', '/api/representative/complaints/1/endorse', null, { authorization: `Bearer ${tokens['representative']}` });
         assert(resEndorse.status === 200 && resEndorse.body.newStatus === 'CLOSED', 'Representative endorses completed work order inside jurisdiction');
 
-        // 11. AI Triage & Vision Analysis
-        const resAiAnalyze = await mockCall('POST', '/api/ai/analyze-complaint', {
+        // 11. AI Triage & Vision Analysis - 100% Accurate Categorization for all 5 Civic Issue Types
+        const resAiRoad = await mockCall('POST', '/api/ai/analyze-complaint', {
             title: 'Deep road potholes near high school',
             description: 'Vehicles slipping due to rough gravel and large pothole.'
         });
-        assert(resAiAnalyze.status === 200 && resAiAnalyze.body.suggestedCategoryName === 'Road Damage', `POST /api/ai/analyze-complaint correctly classified as "${resAiAnalyze.body ? resAiAnalyze.body.suggestedCategoryName : ''}"`);
+        assert(resAiRoad.status === 200 && resAiRoad.body.suggestedCategoryName === 'Road Damage', 'AI correctly categorized Road Damage');
 
-        // 12. AI Conversational RAG Assistant
-        const resAiChat = await mockCall('POST', '/api/ai/chat', {
-            role: 'CITIZEN',
-            message: 'What is the status of complaint GRV-2026-000001?'
+        const resAiWater = await mockCall('POST', '/api/ai/analyze-complaint', {
+            title: 'Main pipeline ruptured and water gushing',
+            description: 'Drinking water pipe burst on 4th cross, clean water leaking continuously.'
         });
-        assert(resAiChat.status === 200 && resAiChat.body.reply.includes('GRV-2026-000001'), 'POST /api/ai/chat retrieved real-time grievance tracking info');
+        assert(resAiWater.status === 200 && resAiWater.body.suggestedCategoryName === 'Water Supply', 'AI correctly categorized Water Supply');
 
-        // 13. Public Portal endpoints
+        const resAiDrain = await mockCall('POST', '/api/ai/analyze-complaint', {
+            title: 'Blocked stormwater gutter overflowing',
+            description: 'Open sewer drain choked with black sewage water stagnation.'
+        });
+        assert(resAiDrain.status === 200 && resAiDrain.body.suggestedCategoryName === 'Drainage', 'AI correctly categorized Drainage');
+
+        const resAiGarb = await mockCall('POST', '/api/ai/analyze-complaint', {
+            title: 'Unattended municipal garbage dump on pavement',
+            description: 'Rotting trash pile and solid waste debris causing bad smell.'
+        });
+        assert(resAiGarb.status === 200 && resAiGarb.body.suggestedCategoryName === 'Garbage', 'AI correctly categorized Garbage');
+
+        const resAiLight = await mockCall('POST', '/api/ai/analyze-complaint', {
+            title: 'Defective street light pole in dark transit lane',
+            description: 'Electric lamp not glowing at night, dark street safety hazard.'
+        });
+        assert(resAiLight.status === 200 && resAiLight.body.suggestedCategoryName === 'Street Lights', 'AI correctly categorized Street Lights');
+
+        // 12. Officer Duplicate Workflow: Move complaint to Duplicate Flagged section & verify
+        const resMarkDup = await mockCall('PUT', '/api/officer/complaints/2/duplicate', { isDuplicate: true }, { authorization: `Bearer ${tokens['officer']}` });
+        assert(resMarkDup.status === 200 && resMarkDup.body.complaint.isDuplicate === true, 'Officer marks complaint as duplicate and moves to Duplicate Flagged section');
+
+        const resGetDups = await mockCall('GET', '/api/officer/complaints/duplicates', null, { authorization: `Bearer ${tokens['officer']}` });
+        assert(resGetDups.status === 200 && resGetDups.body.content.some(d => d.complaintId === 2), 'GET /api/officer/complaints/duplicates includes flagged duplicate');
+
+        const resUnflagDup = await mockCall('PUT', '/api/officer/complaints/2/unflag-duplicate', null, { authorization: `Bearer ${tokens['officer']}` });
+        assert(resUnflagDup.status === 200 && resUnflagDup.body.complaint.isDuplicate === false, 'Officer unflags complaint and restores to active status');
+
+        // 13. Representative Dynamic Area Filtering for Custom Constituency
+        const resIndiraRep = await mockCall('GET', '/api/representative/complaints?area=Indiranagar', null, { authorization: `Bearer ${tokens['representative']}` });
+        assert(resIndiraRep.status === 200 && Array.isArray(resIndiraRep.body.content), 'Representative queries area-specific grievances with custom constituency query');
+
+        // 14. AI Conversational Assistant - Distinct Answers for Different Citizen Questions
+        const resChatTrack = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'What is the status of complaint GRV-2026-000001?' });
+        assert(resChatTrack.status === 200 && resChatTrack.body.reply.includes('GRV-2026-000001'), 'Chatbot tracks specific complaint reference');
+
+        const resChatPothole = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'How do you fix potholes on the road?' });
+        assert(resChatPothole.status === 200 && resChatPothole.body.reply.includes('Road Maintenance'), 'Chatbot gives specific road maintenance answer');
+
+        const resChatWater = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'There is a drinking water pipeline leak' });
+        assert(resChatWater.status === 200 && resChatWater.body.reply.includes('Water Supply'), 'Chatbot gives specific water supply answer');
+
+        const resChatSla = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'What is the SLA deadline for repairs?' });
+        assert(resChatSla.status === 200 && resChatSla.body.reply.includes('SLA'), 'Chatbot gives specific SLA deadline answer');
+
+        const resChatPhoto = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'Why was my photo rejected by AI Vision?' });
+        assert(resChatPhoto.status === 200 && resChatPhoto.body.reply.includes('AI Vision'), 'Chatbot gives photo validation rules answer');
+
+        const resChatHelpline = await mockCall('POST', '/api/ai/chat', { role: 'CITIZEN', message: 'What is the emergency helpline number?' });
+        assert(resChatHelpline.status === 200 && resChatHelpline.body.reply.includes('1913'), 'Chatbot provides municipal emergency helplines');
+
+        // 15. Public Portal endpoints
         const resPubStats = await mockCall('GET', '/api/public/stats');
         assert(resPubStats.status === 200 && resPubStats.body.totalComplaints > 0, 'GET /api/public/stats returns public landing stats');
 
